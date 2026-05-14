@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ossPolicyAPI } from '@/apis/oss' // 假设这是API文件的正确路径
-import { ElMessage, type UploadProps, type UploadUserFile } from 'element-plus'
+import {
+  ElMessage,
+  type UploadProps,
+  type UploadUserFile,
+  type UploadRequestOptions,
+} from 'element-plus'
 
 // 定义属性
 const props = defineProps({
   // 上传图片路径（Vue 3中v-model对应的属性值为modelValue）
   modelValue: {
     type: String,
-    default: ''
-  }
+    default: '',
+  },
 })
 
 // 定义事件
@@ -20,7 +25,7 @@ const dataObj = ref({
   policy: '',
   signature: '',
   key: '',
-  ossaccessKeyId: '',
+  OSSAccessKeyId: '',
   dir: '',
   host: '',
 })
@@ -36,17 +41,23 @@ const minioUploadUrl = import.meta.env.VITE_BASE_SERVER_URL + import.meta.env.VI
 const fileList = ref<UploadUserFile[]>([])
 
 // 由于图片url是动态加载的，所以需要使用watch来监听
-watch(() => props.modelValue, (newVal) => {
-  if (newVal) {
-    const fileName = newVal.substring(newVal.lastIndexOf("/") + 1)
-    fileList.value = [{
-      name: fileName,
-      url: newVal
-    }]
-  } else {
-    fileList.value = []
-  }
-}, { immediate: true })
+watch(
+  () => props.modelValue,
+  newVal => {
+    if (newVal) {
+      const fileName = newVal.substring(newVal.lastIndexOf('/') + 1)
+      fileList.value = [
+        {
+          name: fileName,
+          url: newVal,
+        },
+      ]
+    } else {
+      fileList.value = []
+    }
+  },
+  { immediate: true },
+)
 
 // 处理input事件
 const emitInput = (val: string) => {
@@ -72,7 +83,7 @@ const beforeUpload: UploadProps['beforeUpload'] = async () => {
     const res = await ossPolicyAPI()
     dataObj.value.policy = res.data.policy
     dataObj.value.signature = res.data.signature
-    dataObj.value.ossaccessKeyId = res.data.accessKeyId
+    dataObj.value.OSSAccessKeyId = res.data.accessKeyId
     dataObj.value.key = res.data.dir + '/${filename}'
     dataObj.value.dir = res.data.dir
     dataObj.value.host = res.data.host
@@ -81,6 +92,33 @@ const beforeUpload: UploadProps['beforeUpload'] = async () => {
     console.log(err)
     return false
   }
+}
+
+// 自定义OSS上传请求
+const ossHttpRequest = (options: UploadRequestOptions) => {
+  const formData = new FormData()
+  // 注意：key必须在file之前
+  formData.append('key', dataObj.value.key)
+  formData.append('OSSAccessKeyId', dataObj.value.OSSAccessKeyId)
+  formData.append('policy', dataObj.value.policy)
+  formData.append('signature', dataObj.value.signature)
+  formData.append('file', options.file)
+
+  return fetch(ossUploadUrl, {
+    method: 'POST',
+    body: formData,
+  })
+    .then(res => {
+      if (res.ok || res.status === 204) {
+        options.onSuccess(res)
+      } else {
+        res.text().then(text => console.error('OSS upload error:', text))
+        options.onError(new Error(`Upload failed with status ${res.status}`) as never)
+      }
+    })
+    .catch(err => {
+      options.onError(err)
+    })
 }
 
 // 处理图片上传成功
@@ -109,16 +147,25 @@ const handleUploadSuccess: UploadProps['onSuccess'] = (res, file) => {
 
 <template>
   <div>
-    <el-upload :action="useOss ? ossUploadUrl : minioUploadUrl" list-type="picture" :multiple="false"
-      :show-file-list="props.modelValue ? true : false" :file-list="fileList" :before-upload="beforeUpload"
-      :on-remove="handleRemove" :on-success="handleUploadSuccess" :on-preview="handlePreview">
+    <el-upload
+      :action="useOss ? ossUploadUrl : minioUploadUrl"
+      list-type="picture"
+      :multiple="false"
+      :show-file-list="props.modelValue ? true : false"
+      :file-list="fileList"
+      :http-request="useOss ? ossHttpRequest : undefined"
+      :before-upload="beforeUpload"
+      :on-remove="handleRemove"
+      :on-success="handleUploadSuccess"
+      :on-preview="handlePreview"
+    >
       <el-button size="small" type="primary">点击上传</el-button>
       <template #tip>
         <div class="el-upload__tip">只能上传jpg/png文件，且不超过10MB</div>
       </template>
     </el-upload>
     <el-dialog v-model="dialogVisible">
-      <img width="100%" :src="fileList[0]?.url" alt="">
+      <img width="100%" :src="fileList[0]?.url" alt="" />
     </el-dialog>
   </div>
 </template>
