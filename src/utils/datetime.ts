@@ -8,6 +8,19 @@ export const formatDateTime = (time: string) => {
   return dayjs(time).format('YYYY-MM-DD HH:mm:ss')
 }
 
+// 毫秒时间戳格式化（新模块 create_time 为 bigint ms）
+export const formatTs = (ms: number | string | null | undefined) => {
+  if (ms === null || ms === undefined || ms === '') {
+    return 'N/A'
+  }
+  const num = Number(ms)
+  if (Number.isNaN(num) || num <= 0) {
+    return 'N/A'
+  }
+  return dayjs(num).format('YYYY-MM-DD HH:mm:ss')
+}
+
+
 // 日期格式化函数
 export const formatDate = (time: string) => {
   if (!time) {

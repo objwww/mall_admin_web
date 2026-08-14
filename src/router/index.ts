@@ -364,6 +364,198 @@ export const asyncRouterMap: RouteRecordExt[] = [
       },
     ],
   },
+  {
+    path: '/sys',
+    component: Layout,
+    redirect: '/sys/dict',
+    name: 'sys',
+    meta: { title: '系统管理', icon: 'sys' },
+    children: [
+      {
+        path: 'dict',
+        name: 'dict',
+        component: () => import('@/views/sys/dict/index.vue'),
+        meta: { title: '字典管理', icon: 'dict' },
+      },
+      {
+        path: 'dept',
+        name: 'dept',
+        component: () => import('@/views/sys/dept/index.vue'),
+        meta: { title: '部门管理', icon: 'dept' },
+      },
+      {
+        path: 'post',
+        name: 'post',
+        component: () => import('@/views/sys/post/index.vue'),
+        meta: { title: '岗位管理', icon: 'post' },
+      },
+      {
+        path: 'file',
+        name: 'file',
+        component: () => import('@/views/sys/file/index.vue'),
+        meta: { title: '文件中心', icon: 'file' },
+      },
+    ],
+  },
+  {
+    path: '/job',
+    component: Layout,
+    redirect: '/job/jobCenter',
+    name: 'job',
+    meta: { title: '任务中心', icon: 'job' },
+    children: [
+      {
+        path: 'jobCenter',
+        name: 'jobCenter',
+        component: () => import('@/views/job/index.vue'),
+        meta: { title: '任务中心', icon: 'job' },
+      },
+    ],
+  },
+  {
+    path: '/member',
+    component: Layout,
+    redirect: '/member/tag',
+    name: 'member',
+    meta: { title: '会员运营', icon: 'member' },
+    children: [
+      {
+        path: 'tag',
+        name: 'memberTag',
+        component: () => import('@/views/member/tag/index.vue'),
+        meta: { title: '会员标签', icon: 'tag' },
+      },
+      {
+        path: 'level',
+        name: 'memberLevelUpgrade',
+        component: () => import('@/views/member/level/index.vue'),
+        meta: { title: '等级升级', icon: 'level' },
+      },
+    ],
+  },
+  {
+    path: '/trade',
+    component: Layout,
+    redirect: '/trade/express',
+    name: 'trade',
+    meta: { title: '交易支撑', icon: 'trade' },
+    children: [
+      {
+        path: 'express',
+        name: 'expressCompany',
+        component: () => import('@/views/trade/express/index.vue'),
+        meta: { title: '快递公司', icon: 'express' },
+      },
+      {
+        path: 'freight',
+        name: 'freightTemplate',
+        component: () => import('@/views/trade/freight/index.vue'),
+        meta: { title: '运费模板', icon: 'freight' },
+      },
+      {
+        path: 'pickup',
+        name: 'pickupPoint',
+        component: () => import('@/views/trade/pickup/index.vue'),
+        meta: { title: '自提点', icon: 'pickup' },
+      },
+      {
+        path: 'pickupCode',
+        name: 'pickupCode',
+        component: () => import('@/views/trade/pickupCode/index.vue'),
+        meta: { title: '核销码', icon: 'code' },
+      },
+    ],
+  },
+  {
+    path: '/marketing',
+    component: Layout,
+    redirect: '/marketing/limitDiscount',
+    name: 'marketing',
+    meta: { title: '营销活动', icon: 'marketing' },
+    children: [
+      {
+        path: 'limitDiscount',
+        name: 'limitDiscount',
+        component: () => import('@/views/marketing/limitDiscount/index.vue'),
+        meta: { title: '限时折扣', icon: 'discount' },
+      },
+      {
+        path: 'fullReduction',
+        name: 'fullReduction',
+        component: () => import('@/views/marketing/fullReduction/index.vue'),
+        meta: { title: '满减送', icon: 'reduction' },
+      },
+      {
+        path: 'groupon',
+        name: 'groupon',
+        component: () => import('@/views/marketing/groupon/index.vue'),
+        meta: { title: '拼团', icon: 'groupon' },
+      },
+      {
+        path: 'bargain',
+        name: 'bargain',
+        component: () => import('@/views/marketing/bargain/index.vue'),
+        meta: { title: '砍价', icon: 'bargain' },
+      },
+      {
+        path: 'diy',
+        name: 'diyPage',
+        component: () => import('@/views/marketing/diy/index.vue'),
+        meta: { title: '装修页', icon: 'diy' },
+      },
+    ],
+  },
+  {
+    path: '/statistics',
+    component: Layout,
+    redirect: '/statistics/report',
+    name: 'statistics',
+    meta: { title: '统计报表', icon: 'statistics' },
+    children: [
+      {
+        path: 'report',
+        name: 'statisticsReport',
+        component: () => import('@/views/statistics/index.vue'),
+        meta: { title: '统计报表', icon: 'statistics' },
+      },
+    ],
+  },
+  {
+    path: '/log',
+    component: Layout,
+    redirect: '/log/audit',
+    name: 'log',
+    meta: { title: '日志审计', icon: 'log' },
+    children: [
+      {
+        path: 'audit',
+        name: 'logAudit',
+        component: () => import('@/views/log/index.vue'),
+        meta: { title: '日志审计', icon: 'log' },
+      },
+    ],
+  },
+  {
+    path: '/pay',
+    component: Layout,
+    redirect: '/pay/order',
+    name: 'pay',
+    meta: { title: '支付管理', icon: 'pay' },
+    children: [
+      {
+        path: 'order',
+        name: 'payOrder',
+        component: () => import('@/views/pay/order/index.vue'),
+        meta: { title: '支付单', icon: 'payOrder' },
+      },
+      {
+        path: 'notify',
+        name: 'payNotifyTask',
+        component: () => import('@/views/pay/notify/index.vue'),
+        meta: { title: '回调任务', icon: 'pay' },
+      },
+    ],
+  },
 ]
 
 // createWebHistory（History 模式）地址格式（需要服务器配置）：http://domain.com/admin/home
