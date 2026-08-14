@@ -19,6 +19,10 @@ export function getMemberStatisticsAPI(params: Record<string, any>) {
 export function getPaymentStatisticsAPI(params: Record<string, any>) {
   return http<CommonResult<Record<string, any>>>({ url: '/statistics/payment', method: 'get', params })
 }
+/** 首页看板聚合统计 */
+export function getDashboardStatisticsAPI() {
+  return http<CommonResult<Record<string, any>>>({ url: '/statistics/dashboard', method: 'get' })
+}
 
 /* ==================== 日志审计 ==================== */
 
