@@ -201,6 +201,15 @@ export interface AfterSaleReceiveParam {
   receiveNote?: string
 }
 
+/** 商家发货参数（换货发出） */
+export interface AfterSaleShipParam {
+  deliveryCode: string
+  deliveryCompany: string
+  deliverySn: string
+  handleMan: string
+  handleNote?: string
+}
+
 /** 售后原因 */
 export interface OmsOrderReturnReason {
   id: number
