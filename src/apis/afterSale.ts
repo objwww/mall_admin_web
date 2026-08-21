@@ -6,6 +6,7 @@ import type {
   AfterSaleApproveParam,
   AfterSaleRejectParam,
   AfterSaleReceiveParam,
+  AfterSaleShipParam,
   OmsOrderReturnReason,
   OmsExpressCompany,
   OmsCompanyAddress,
@@ -61,6 +62,17 @@ export function rejectAfterSaleAPI(id: number, data: AfterSaleRejectParam) {
 export function receiveAfterSaleAPI(id: number, data: AfterSaleReceiveParam) {
   return http({
     url: `/afterSale/${id}/receive`,
+    method: 'post',
+    data,
+  })
+}
+
+/**
+ * 商家确认换货发出
+ */
+export function shipExchangeAfterSaleAPI(id: number, data: AfterSaleShipParam) {
+  return http({
+    url: `/afterSale/${id}/shipExchange`,
     method: 'post',
     data,
   })
