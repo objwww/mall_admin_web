@@ -2,358 +2,620 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getReturnApplyByIdAPI, returnApplyUpdateStatusAPI } from '@/apis/returnApply'
-import { getCompanyAddressListAPI } from '@/apis/companyAddress'
+import {
+  getAfterSaleDetailAPI,
+  approveAfterSaleAPI,
+  rejectAfterSaleAPI,
+  receiveAfterSaleAPI,
+  getCompanyAddressListAPI,
+} from '@/apis/afterSale'
 import { formatDateTime } from '@/utils/datetime'
-import type { OmsOrderReturnApply, OmsUpdateStatusParam } from '@/types/returnApply'
-import type { OmsCompanyAddress } from '@/types/companyAddress'
+import type {
+  AfterSaleDetail,
+  AfterSaleApproveParam,
+  AfterSaleRejectParam,
+  AfterSaleReceiveParam,
+  AfterSaleStatus,
+  AfterSaleType,
+  RefundStatus,
+  InspectionResult,
+  OmsCompanyAddress,
+} from '@/types/afterSale'
+import {
+  AfterSaleStatusText,
+  AfterSaleTypeText,
+  RefundStatusText,
+  InspectionResultText,
+} from '@/types/afterSale'
 
-// 默认状态修改参数
-const defaultUpdateStatusParam = {
-  id: 0,
-  companyAddressId: 0,
-  handleMan: 'admin',
-  handleNote: '',
-  receiveMan: 'admin',
-  receiveNote: '',
-  returnAmount: 0,
-  status: 0
-}
-
-// 路由相关
 const route = useRoute()
 const router = useRouter()
 
-// 当前退货申请ID
-const id = ref()
-// 当前退货申请
-const orderReturnApply = ref({} as OmsOrderReturnApply)
-// 凭证图片
-const proofPics = ref<string[]>([])
-// 退货商品列表
-const productList = ref()
-// 公司收货地址列表
+const id = ref<number>(0)
+const detail = ref<AfterSaleDetail>({} as AfterSaleDetail)
+const loading = ref(false)
+
+// 审核表单
+const approveForm = ref<AfterSaleApproveParam>({
+  companyAddressId: undefined,
+  refundAmount: undefined,
+  handleMan: 'admin',
+  handleNote: '',
+})
+const approveDialogVisible = ref(false)
+
+// 拒绝表单
+const rejectForm = ref<AfterSaleRejectParam>({
+  handleMan: 'admin',
+  reason: '',
+})
+const rejectDialogVisible = ref(false)
+
+// 收货表单
+const receiveForm = ref<AfterSaleReceiveParam>({
+  inspectionResult: 1,
+  restock: true,
+  receiveMan: 'admin',
+  receiveNote: '',
+})
+const receiveDialogVisible = ref(false)
+
+// 公司地址列表
 const companyAddressList = ref<OmsCompanyAddress[]>([])
-// 修改退货申请状态参数
-const updateStatusParam = ref<OmsUpdateStatusParam>(Object.assign({}, defaultUpdateStatusParam))
+
 // 获取详情
 const getDetail = async () => {
-  const res = await getReturnApplyByIdAPI(id.value)
-  orderReturnApply.value = res.data
-  productList.value = []
-  productList.value.push(orderReturnApply.value)
-  if (orderReturnApply.value.proofPics) {
-    proofPics.value = orderReturnApply.value.proofPics.split(",")
-  }
-  // 退货中和完成
-  if (orderReturnApply.value.status === 1 || orderReturnApply.value.status === 2) {
-    updateStatusParam.value.returnAmount = orderReturnApply.value.returnAmount
-    updateStatusParam.value.companyAddressId = orderReturnApply.value.companyAddressId
-  }
-}
-// 获取公司地址列表
-const getCompanyAddressList = async () => {
-  const res = await getCompanyAddressListAPI()
-  companyAddressList.value = res.data
-  // 获取默认收货地址
-  const defaultAddress = companyAddressList.value.find(item => item.receiveStatus === 1)
-  if (defaultAddress) {
-    updateStatusParam.value.companyAddressId = defaultAddress.id!
+  loading.value = true
+  try {
+    const res = await getAfterSaleDetailAPI(id.value)
+    detail.value = res
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载失败')
+  } finally {
+    loading.value = false
   }
 }
 
-// 组件挂载
+// 获取公司地址列表
+const getCompanyAddressList = async () => {
+  try {
+    const res = await getCompanyAddressListAPI()
+    companyAddressList.value = res.data || []
+  } catch (e) {
+    console.error('加载公司地址失败', e)
+  }
+}
+
 onMounted(() => {
-  id.value = route.query.id
-  getDetail()
-  getCompanyAddressList()
+  id.value = Number(route.query.id)
+  if (id.value) {
+    getDetail()
+    getCompanyAddressList()
+  }
 })
 
 // 计算属性
-const totalAmount = computed(() => {
-  if (orderReturnApply.value != null) {
-    return orderReturnApply.value.productRealPrice * orderReturnApply.value.productCount
-  } else {
-    return 0
+const statusText = computed(() => AfterSaleStatusText[detail.value.status as AfterSaleStatus] || '未知')
+const typeText = computed(() => AfterSaleTypeText[detail.value.serviceType as AfterSaleType] || '未知')
+const refundStatusText = computed(() => {
+  if (!detail.value.refund) return '-'
+  return RefundStatusText[detail.value.refund.status as RefundStatus] || '未知'
+})
+const inspectionResultText = computed(() => {
+  if (!detail.value.inspectionResult) return '-'
+  return InspectionResultText[detail.value.inspectionResult as InspectionResult] || '未知'
+})
+
+const allowedActions = computed(() => detail.value.allowedActions || [])
+const canApprove = computed(() => allowedActions.value.includes('ADMIN_APPROVE'))
+const canReject = computed(() => allowedActions.value.includes('ADMIN_REJECT'))
+const canReceive = computed(() => allowedActions.value.includes('ADMIN_RECEIVE'))
+
+const isReturnRefund = computed(() => detail.value.serviceType === 2)
+const isRefundOnly = computed(() => detail.value.serviceType === 1)
+
+// 打开审核对话框
+const openApproveDialog = () => {
+  approveForm.value = {
+    companyAddressId: isReturnRefund.value ? companyAddressList.value[0]?.id : undefined,
+    refundAmount: detail.value.applyAmount,
+    handleMan: 'admin',
+    handleNote: '',
   }
-})
+  approveDialogVisible.value = true
+}
 
-// 当前收货地址
-const currentAddress = computed(() => {
-  const idValue = updateStatusParam.value.companyAddressId
-  if (!companyAddressList.value) return undefined
-  return companyAddressList.value.find(item => item.id === idValue)
-})
-
-// 格式化状态
-const formatStatus = (status: number) => {
-  if (status === 0) {
-    return "待处理"
-  } else if (status === 1) {
-    return "退货中"
-  } else if (status === 2) {
-    return "已完成"
-  } else {
-    return "已拒绝"
+// 提交审核
+const handleApprove = async () => {
+  if (isReturnRefund.value && !approveForm.value.companyAddressId) {
+    ElMessage.warning('请选择退货地址')
+    return
+  }
+  if (!approveForm.value.refundAmount || approveForm.value.refundAmount <= 0) {
+    ElMessage.warning('请输入退款金额')
+    return
+  }
+  if (approveForm.value.refundAmount > detail.value.applyAmount) {
+    ElMessage.warning('退款金额不能超过申请金额')
+    return
+  }
+  try {
+    await approveAfterSaleAPI(id.value, approveForm.value)
+    ElMessage.success('审核通过')
+    approveDialogVisible.value = false
+    getDetail()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
   }
 }
 
-// 格式化地区
-const formatRegion = (address: OmsCompanyAddress | undefined) => {
-  if (!address) return ''
-  let str = address.province
-  if (address.city) {
-    str += "  " + address.city
+// 打开拒绝对话框
+const openRejectDialog = () => {
+  rejectForm.value = { handleMan: 'admin', reason: '' }
+  rejectDialogVisible.value = true
+}
+
+// 提交拒绝
+const handleReject = async () => {
+  if (!rejectForm.value.reason.trim()) {
+    ElMessage.warning('请输入拒绝原因')
+    return
   }
-  str += "  " + address.region
-  return str
+  try {
+    await rejectAfterSaleAPI(id.value, rejectForm.value)
+    ElMessage.success('已拒绝')
+    rejectDialogVisible.value = false
+    getDetail()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
+  }
+}
+
+// 打开收货对话框
+const openReceiveDialog = () => {
+  receiveForm.value = {
+    inspectionResult: 1,
+    restock: true,
+    receiveMan: 'admin',
+    receiveNote: '',
+  }
+  receiveDialogVisible.value = true
+}
+
+// 验货结果变化
+const handleInspectionChange = (val: number) => {
+  if (val !== 1) {
+    receiveForm.value.restock = false
+  }
+}
+
+// 提交收货
+const handleReceive = async () => {
+  if (receiveForm.value.inspectionResult !== 1 && receiveForm.value.restock) {
+    ElMessage.warning('商品非完好状态不能恢复库存')
+    return
+  }
+  try {
+    await receiveAfterSaleAPI(id.value, receiveForm.value)
+    ElMessage.success('确认收货成功')
+    receiveDialogVisible.value = false
+    getDetail()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
+  }
 }
 
 // 查看订单详情
 const handleViewOrder = () => {
-  router.push({ path: '/oms/orderDetail', query: { id: orderReturnApply.value.orderId } })
+  router.push({ path: '/oms/orderDetail', query: { id: detail.value.orderId } })
 }
 
-// 更新状态
-const handleUpdateStatus = async (status: number) => {
-  updateStatusParam.value.status = status
-  await ElMessageBox.confirm('是否要进行此操作?', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
-  await returnApplyUpdateStatusAPI(id.value, updateStatusParam.value)
-  ElMessage({
-    type: 'success',
-    message: '操作成功!',
-    duration: 1000
-  })
-  router.back()
+// 格式化地址
+const formatAddress = (addr: any) => {
+  if (!addr) return '-'
+  return `${addr.province || ''}${addr.city || ''}${addr.region || ''}${addr.detailAddress || ''}`
 }
-
-
 </script>
 
 <template>
-  <div class="detail-container">
-    <el-card shadow="never">
-      <span class="font-title-medium">退货商品</span>
-      <el-table border class="standard-margin" ref="productTable" :data="productList">
-        <el-table-column label="商品图片" width="160" align="center">
+  <div class="detail-container" v-loading="loading">
+    <!-- 状态头部 -->
+    <el-card shadow="never" class="status-card">
+      <div class="status-header">
+        <div>
+          <span class="status-label">售后状态：</span>
+          <el-tag :type="detail.status === 70 ? 'success' : detail.status >= 80 ? 'info' : 'warning'" size="large">
+            {{ statusText }}
+          </el-tag>
+          <span v-if="detail.refund" class="refund-label">
+            退款状态：
+            <el-tag :type="detail.refund.status === 2 ? 'success' : detail.refund.status === 3 ? 'danger' : 'warning'" size="small">
+              {{ refundStatusText }}
+            </el-tag>
+          </span>
+        </div>
+        <div class="action-btns">
+          <el-button v-if="canApprove" type="primary" @click="openApproveDialog">审核通过</el-button>
+          <el-button v-if="canReject" type="danger" @click="openRejectDialog">审核拒绝</el-button>
+          <el-button v-if="canReceive" type="success" @click="openReceiveDialog">确认收货</el-button>
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 商品信息 -->
+    <el-card shadow="never" class="standard-margin">
+      <span class="font-title-medium">商品信息</span>
+      <el-table border class="standard-margin" :data="[detail]">
+        <el-table-column label="商品图片" width="120" align="center">
           <template #default="scope">
-            <img style="height:80px" :src="scope.row.productPic">
+            <img style="height:80px" :src="scope.row.productPic" />
           </template>
         </el-table-column>
         <el-table-column label="商品名称" align="center">
           <template #default="scope">
-            <span class="font-small">{{ scope.row.productName }}</span><br>
-            <span class="font-small">品牌：{{ scope.row.productBrand }}</span>
+            <span class="font-small">{{ scope.row.productName }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="价格/货号" width="180" align="center">
+        <el-table-column label="规格属性" width="200" align="center">
+          <template #default="scope">{{ scope.row.productAttr || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="数量" width="80" align="center">
+          <template #default="scope">{{ scope.row.productCount || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="申请金额" width="120" align="center">
           <template #default="scope">
-            <span class="font-small">价格：￥{{ scope.row.productRealPrice }}</span><br>
-            <span class="font-small">货号：NO.{{ scope.row.productId }}</span>
+            <span class="color-danger">￥{{ scope.row.applyAmount }}</span>
           </template>
-        </el-table-column>
-        <el-table-column label="属性" width="180" align="center">
-          <template #default="scope">{{ scope.row.productAttr }}</template>
-        </el-table-column>
-        <el-table-column label="数量" width="100" align="center">
-          <template #default="scope">{{ scope.row.productCount }}</template>
-        </el-table-column>
-        <el-table-column label="小计" width="100" align="center">
-          <template>￥{{ totalAmount }}</template>
         </el-table-column>
       </el-table>
-      <div style="float:right;margin-top:15px;margin-bottom:15px">
-        <span class="font-title-medium">合计：</span>
-        <span class="font-title-medium color-danger">￥{{ totalAmount }}</span>
-      </div>
     </el-card>
+
+    <!-- 售后信息 -->
     <el-card shadow="never" class="standard-margin">
-      <span class="font-title-medium">服务单信息</span>
+      <span class="font-title-medium">售后信息</span>
       <div class="form-container-border">
         <el-row>
-          <el-col :span="6" class="form-border form-left-bg font-small">服务单号</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.id }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">售后单号</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.afterSaleSn }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">售后类型</el-col>
+          <el-col class="form-border font-small" :span="6">{{ typeText }}</el-col>
         </el-row>
         <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">申请状态</el-col>
-          <el-col class="form-border font-small" :span="18">{{ formatStatus(orderReturnApply.status) }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col :span="6" class="form-border form-left-bg font-small" style="height:50px;line-height:30px">订单编号
-          </el-col>
-          <el-col class="form-border font-small" :span="18" style="height:50px">
-            {{ orderReturnApply.orderSn }}
+          <el-col :span="6" class="form-border form-left-bg font-small">订单编号</el-col>
+          <el-col class="form-border font-small" :span="6">
+            {{ detail.orderSn }}
             <el-button type="text" size="small" @click="handleViewOrder">查看</el-button>
           </el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">用户账号</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.memberUsername || '-' }}</el-col>
         </el-row>
         <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">申请时间</el-col>
-          <el-col class="form-border font-small" :span="18">{{ formatDateTime(orderReturnApply.createTime) }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">申请时间</el-col>
+          <el-col class="form-border font-small" :span="6">{{ formatDateTime(detail.createTime) }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">售后截止时间</el-col>
+          <el-col class="form-border font-small" :span="6">{{ formatDateTime(detail.afterSaleDeadline) }}</el-col>
         </el-row>
         <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">用户账号</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.memberUsername }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">联系人</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.returnName }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">联系电话</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.returnPhone }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">退货原因</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.reason }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">问题描述</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.description }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6" style="height:100px;line-height:80px">凭证图片
-          </el-col>
-          <el-col class="form-border font-small" :span="18" style="height:100px">
-            <img v-for="item in proofPics" style="width:80px;height:80px" :src="item" :key="item">
+          <el-col :span="6" class="form-border form-left-bg font-small">售后原因</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.reason }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">确认退款金额</el-col>
+          <el-col class="form-border font-small" :span="6">
+            <span class="color-danger">￥{{ detail.returnAmount || detail.applyAmount }}</span>
           </el-col>
         </el-row>
-      </div>
-      <div class="form-container-border">
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">订单金额</el-col>
-          <el-col class="form-border font-small" :span="18">￥{{ totalAmount }}</el-col>
+        <el-row v-if="detail.description">
+          <el-col :span="6" class="form-border form-left-bg font-small">问题描述</el-col>
+          <el-col class="form-border font-small" :span="18">{{ detail.description }}</el-col>
         </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6" style="height:52px;line-height:32px">确认退款金额
-          </el-col>
-          <el-col class="form-border font-small" style="height:52px" :span="18">
-            ￥
-            <el-input size="small" v-model="updateStatusParam.returnAmount" :disabled="orderReturnApply.status !== 0"
-              style="width:200px;margin-left: 10px"></el-input>
-          </el-col>
-        </el-row>
-        <div v-show="orderReturnApply.status !== 3">
-          <el-row>
-            <el-col class="form-border form-left-bg font-small" :span="6" style="height:52px;line-height:32px">选择收货点
-            </el-col>
-            <el-col class="form-border font-small" style="height:52px" :span="18">
-              <el-select size="small" style="width:200px" :disabled="orderReturnApply.status !== 0"
-                v-model="updateStatusParam.companyAddressId">
-                <el-option v-for="address in companyAddressList" :key="address.id" :value="address.id!"
-                  :label="address.addressName">
-                </el-option>
-              </el-select>
-            </el-col>
-          </el-row>
-          <el-row>
-            <el-col class="form-border form-left-bg font-small" :span="6">收货人姓名</el-col>
-            <el-col class="form-border font-small" :span="18">{{ currentAddress?.name }}</el-col>
-          </el-row>
-          <el-row>
-            <el-col class="form-border form-left-bg font-small" :span="6">所在区域</el-col>
-            <el-col class="form-border font-small" :span="18">{{ formatRegion(currentAddress)
-              }}</el-col>
-          </el-row>
-          <el-row>
-            <el-col class="form-border form-left-bg font-small" :span="6">详细地址</el-col>
-            <el-col class="form-border font-small" :span="18">{{ currentAddress?.detailAddress }}</el-col>
-          </el-row>
-          <el-row>
-            <el-col class="form-border form-left-bg font-small" :span="6">联系电话</el-col>
-            <el-col class="form-border font-small" :span="18">{{ currentAddress?.phone }}</el-col>
-          </el-row>
-        </div>
-      </div>
-      <div class="form-container-border" v-show="orderReturnApply.status !== 0">
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">处理人员</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.handleMan }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">处理时间</el-col>
-          <el-col class="form-border font-small" :span="18">{{ formatDateTime(orderReturnApply.handleTime) }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">处理备注</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.handleNote }}</el-col>
-        </el-row>
-      </div>
-      <div class="form-container-border" v-show="orderReturnApply.status === 2">
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">收货人员</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.receiveMan }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">收货时间</el-col>
-          <el-col class="form-border font-small" :span="18">{{ formatDateTime(orderReturnApply.receiveTime) }}</el-col>
-        </el-row>
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6">收货备注</el-col>
-          <el-col class="form-border font-small" :span="18">{{ orderReturnApply.receiveNote }}</el-col>
-        </el-row>
-      </div>
-      <div class="form-container-border" v-show="orderReturnApply.status === 0">
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6"
-            style="height:52px;line-height:32px">处理备注</el-col>
-          <el-col class="form-border font-small" :span="18">
-            <el-input size="small" v-model="updateStatusParam.handleNote"
-              style="width:200px;margin-left: 10px"></el-input>
-          </el-col>
-        </el-row>
-      </div>
-      <div class="form-container-border" v-show="orderReturnApply.status === 1">
-        <el-row>
-          <el-col class="form-border form-left-bg font-small" :span="6"
-            style="height:52px;line-height:32px">收货备注</el-col>
-          <el-col class="form-border font-small" :span="18">
-            <el-input size="small" v-model="updateStatusParam.receiveNote"
-              style="width:200px;margin-left: 10px"></el-input>
-          </el-col>
-        </el-row>
-      </div>
-      <div style="margin-top:15px;text-align: center" v-show="orderReturnApply.status === 0">
-        <el-button type="primary" size="small" @click="handleUpdateStatus(1)">确认退货</el-button>
-        <el-button type="danger" size="small" @click="handleUpdateStatus(3)">拒绝退货</el-button>
-      </div>
-      <div style="margin-top:15px;text-align: center" v-show="orderReturnApply.status === 1">
-        <el-button type="primary" size="small" @click="handleUpdateStatus(2)">确认收货</el-button>
       </div>
     </el-card>
+
+    <!-- 凭证图片 -->
+    <el-card v-if="detail.proofPics && detail.proofPics.length > 0" shadow="never" class="standard-margin">
+      <span class="font-title-medium">凭证图片</span>
+      <div class="proof-list">
+        <el-image
+          v-for="(pic, index) in detail.proofPics"
+          :key="index"
+          :src="pic"
+          :preview-src-list="detail.proofPics"
+          :initial-index="index"
+          fit="cover"
+          class="proof-img"
+        />
+      </div>
+    </el-card>
+
+    <!-- 退货地址 -->
+    <el-card v-if="detail.returnAddress" shadow="never" class="standard-margin">
+      <span class="font-title-medium">退货地址</span>
+      <div class="address-card">
+        <div class="address-row">
+          <span class="address-name">{{ detail.returnAddress.name }}</span>
+          <span class="address-phone">{{ detail.returnAddress.phone }}</span>
+        </div>
+        <div class="address-detail">{{ formatAddress(detail.returnAddress) }}</div>
+        <div v-if="detail.returnShipDeadline" class="deadline-tip">
+          请在 {{ formatDateTime(detail.returnShipDeadline) }} 前寄出
+        </div>
+      </div>
+    </el-card>
+
+    <!-- 买家退货物流 -->
+    <el-card v-if="detail.buyerShipment" shadow="never" class="standard-margin">
+      <span class="font-title-medium">买家退货物流</span>
+      <div class="form-container-border">
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">快递公司</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.buyerShipment.deliveryCompany }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">快递单号</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.buyerShipment.deliverySn }}</el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">寄出时间</el-col>
+          <el-col class="form-border font-small" :span="18">{{ formatDateTime(detail.buyerShipment.deliveryTime) }}</el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 验货信息 -->
+    <el-card v-if="detail.inspectionResult" shadow="never" class="standard-margin">
+      <span class="font-title-medium">验货信息</span>
+      <div class="form-container-border">
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">验货结果</el-col>
+          <el-col class="form-border font-small" :span="6">{{ inspectionResultText }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">库存恢复</el-col>
+          <el-col class="form-border font-small" :span="6">
+            {{ detail.restockStatus === 1 ? '已恢复' : detail.restockStatus === 2 ? '不恢复' : '未处理' }}
+          </el-col>
+        </el-row>
+        <el-row v-if="detail.receiveNote">
+          <el-col :span="6" class="form-border form-left-bg font-small">收货备注</el-col>
+          <el-col class="form-border font-small" :span="18">{{ detail.receiveNote }}</el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">收货人</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.receiveMan || '-' }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">收货时间</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.receiveTime ? formatDateTime(detail.receiveTime) : '-' }}</el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 退款信息 -->
+    <el-card v-if="detail.refund" shadow="never" class="standard-margin">
+      <span class="font-title-medium">退款信息</span>
+      <div class="form-container-border">
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">退款单号</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.refund.refundSn }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">退款金额</el-col>
+          <el-col class="form-border font-small" :span="6">
+            <span class="color-danger">￥{{ detail.refund.refundAmount }}</span>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">退款渠道</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.refund.channelCode }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">退款状态</el-col>
+          <el-col class="form-border font-small" :span="6">{{ refundStatusText }}</el-col>
+        </el-row>
+        <el-row v-if="detail.refund.errorMsg">
+          <el-col :span="6" class="form-border form-left-bg font-small">失败原因</el-col>
+          <el-col class="form-border font-small color-danger" :span="18">{{ detail.refund.errorMsg }}</el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="6" class="form-border form-left-bg font-small">创建时间</el-col>
+          <el-col class="form-border font-small" :span="6">{{ formatDateTime(detail.refund.createTime) }}</el-col>
+          <el-col :span="6" class="form-border form-left-bg font-small">完成时间</el-col>
+          <el-col class="form-border font-small" :span="6">{{ detail.refund.finishTime ? formatDateTime(detail.refund.finishTime) : '-' }}</el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 售后时间线 -->
+    <el-card v-if="detail.timeline && detail.timeline.length > 0" shadow="never" class="standard-margin">
+      <span class="font-title-medium">售后进度</span>
+      <el-timeline class="timeline">
+        <el-timeline-item
+          v-for="(item, index) in detail.timeline"
+          :key="index"
+          :timestamp="formatDateTime(item.createTime)"
+          placement="top"
+          :type="index === 0 ? 'primary' : ''"
+        >
+          <div class="timeline-content">
+            <span class="timeline-action">{{ item.actionText || item.action }}</span>
+            <span v-if="item.operatorName" class="timeline-operator">（{{ item.operatorName }}）</span>
+            <div v-if="item.note" class="timeline-note">{{ item.note }}</div>
+          </div>
+        </el-timeline-item>
+      </el-timeline>
+    </el-card>
+
+    <!-- 审核通过对话框 -->
+    <el-dialog v-model="approveDialogVisible" title="审核通过" width="500px">
+      <el-form :model="approveForm" label-width="100px">
+        <el-form-item v-if="isReturnRefund" label="退货地址" required>
+          <el-select v-model="approveForm.companyAddressId" placeholder="请选择退货地址" style="width: 100%">
+            <el-option
+              v-for="addr in companyAddressList"
+              :key="addr.id"
+              :label="`${addr.name} - ${addr.addressName}`"
+              :value="addr.id"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="退款金额" required>
+          <el-input-number v-model="approveForm.refundAmount" :min="0.01" :max="detail.applyAmount" :precision="2" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="处理人">
+          <el-input v-model="approveForm.handleMan" />
+        </el-form-item>
+        <el-form-item label="处理备注">
+          <el-input v-model="approveForm.handleNote" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="approveDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleApprove">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 审核拒绝对话框 -->
+    <el-dialog v-model="rejectDialogVisible" title="审核拒绝" width="500px">
+      <el-form :model="rejectForm" label-width="100px">
+        <el-form-item label="拒绝原因" required>
+          <el-input v-model="rejectForm.reason" type="textarea" :rows="3" placeholder="请输入拒绝原因" />
+        </el-form-item>
+        <el-form-item label="处理人">
+          <el-input v-model="rejectForm.handleMan" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rejectDialogVisible = false">取消</el-button>
+        <el-button type="danger" @click="handleReject">确认拒绝</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 确认收货对话框 -->
+    <el-dialog v-model="receiveDialogVisible" title="确认收货" width="500px">
+      <el-form :model="receiveForm" label-width="100px">
+        <el-form-item label="验货结果" required>
+          <el-select v-model="receiveForm.inspectionResult" style="width: 100%" @change="handleInspectionChange">
+            <el-option label="正常，可重新销售" :value="1" />
+            <el-option label="商品有损，不恢复可售库存" :value="2" />
+            <el-option label="退回商品不符" :value="3" />
+            <el-option label="数量异常" :value="4" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="恢复库存">
+          <el-switch v-model="receiveForm.restock" :disabled="receiveForm.inspectionResult !== 1" />
+          <span v-if="receiveForm.inspectionResult !== 1" style="color: #999; margin-left: 10px">商品非完好状态不能恢复库存</span>
+        </el-form-item>
+        <el-form-item label="收货人">
+          <el-input v-model="receiveForm.receiveMan" />
+        </el-form-item>
+        <el-form-item label="收货备注">
+          <el-input v-model="receiveForm.receiveNote" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="receiveDialogVisible = false">取消</el-button>
+        <el-button type="success" @click="handleReceive">确认收货</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
 .detail-container {
-  position: absolute;
-  left: 0;
-  right: 0;
-  width: 1080px;
-  padding: 35px 35px 15px 35px;
-  margin: 20px auto;
+  padding: 20px;
 }
-
+.status-card {
+  margin-bottom: 20px;
+}
+.status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.status-label {
+  font-size: 16px;
+  font-weight: bold;
+}
+.refund-label {
+  margin-left: 20px;
+  font-size: 14px;
+}
+.action-btns {
+  display: flex;
+  gap: 10px;
+}
 .standard-margin {
-  margin-top: 15px;
+  margin-top: 20px;
 }
-
-.form-border {
-  border-right: 1px solid #DCDFE6;
-  border-bottom: 1px solid #DCDFE6;
-  padding: 10px;
+.font-title-medium {
+  font-size: 16px;
+  font-weight: bold;
 }
-
+.font-small {
+  font-size: 14px;
+}
+.color-danger {
+  color: #f56c6c;
+}
 .form-container-border {
-  border-left: 1px solid #DCDFE6;
-  border-top: 1px solid #DCDFE6;
   margin-top: 15px;
 }
-
+.form-border {
+  border: 1px solid #ebeef5;
+  padding: 10px;
+  min-height: 40px;
+  line-height: 20px;
+}
 .form-left-bg {
-  background: #F2F6FC;
+  background: #f5f7fa;
+  font-weight: bold;
+}
+.proof-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
+.proof-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 4px;
+}
+.address-card {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 4px;
+}
+.address-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 8px;
+}
+.address-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+.address-phone {
+  font-size: 14px;
+  color: #666;
+}
+.address-detail {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+}
+.deadline-tip {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #f56c6c;
+}
+.timeline {
+  margin-top: 20px;
+}
+.timeline-content {
+  font-size: 14px;
+}
+.timeline-action {
+  font-weight: bold;
+}
+.timeline-operator {
+  color: #999;
+  font-size: 12px;
+}
+.timeline-note {
+  margin-top: 5px;
+  color: #666;
+  font-size: 13px;
 }
 </style>
