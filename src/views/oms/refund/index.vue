@@ -127,7 +127,7 @@ const handlePageChange = (val: number) => {
 const handleRetry = async (row: OmsOrderRefund) => {
   try {
     await ElMessageBox.confirm(`确认重新退款？退款单号：${row.refundSn}`, '提示', { type: 'warning' })
-    await retryRefundAPI(row.id, 'admin')
+    await retryRefundAPI(row.id)
     ElMessage.success('重试已受理')
     getList()
   } catch (e: any) {

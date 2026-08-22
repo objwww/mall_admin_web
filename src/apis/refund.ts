@@ -7,7 +7,7 @@ import http from '@/utils/http'
  */
 export function getRefundListAPI(params: RefundQueryParam) {
   return http<CommonPage<OmsOrderRefund>>({
-    url: '/refund/list',
+    url: '/refund/read/list',
     method: 'get',
     params,
   })
@@ -18,30 +18,18 @@ export function getRefundListAPI(params: RefundQueryParam) {
  */
 export function getRefundDetailAPI(id: number) {
   return http<OmsOrderRefund>({
-    url: `/refund/${id}`,
+    url: `/refund/read/${id}`,
     method: 'get',
-  })
-}
-
-/**
- * 执行退款
- */
-export function executeRefundAPI(id: number, handleMan?: string, handleNote?: string) {
-  return http({
-    url: `/refund/execute/${id}`,
-    method: 'post',
-    params: { handleMan, handleNote },
   })
 }
 
 /**
  * 退款失败重试
  */
-export function retryRefundAPI(id: number, handleMan?: string) {
+export function retryRefundAPI(id: number) {
   return http({
     url: `/refund/retry/${id}`,
     method: 'post',
-    params: { handleMan },
   })
 }
 

@@ -39,8 +39,7 @@
     </el-form>
 
     <!-- 表格 -->
-    <el-table v-loading="listLoading" :data="list" border style="width: 100%" @selection-change="handleSelectionChange">
-      <el-table-column type="selection" width="55" align="center" />
+    <el-table v-loading="listLoading" :data="list" border style="width: 100%">
       <el-table-column label="售后单号" prop="afterSaleSn" width="160" show-overflow-tooltip />
       <el-table-column label="订单号" prop="orderSn" width="160" show-overflow-tooltip />
       <el-table-column label="用户" prop="memberUsername" width="120" show-overflow-tooltip />
@@ -132,9 +131,6 @@ const list = ref<AfterSaleSummary[]>([])
 const total = ref(0)
 // 加载状态
 const listLoading = ref(false)
-// 多选数据
-const multipleSelection = ref<AfterSaleSummary[]>([])
-
 // 获取列表
 const getList = async () => {
   listLoading.value = true
@@ -153,11 +149,6 @@ const getList = async () => {
 const resetQuery = () => {
   listQuery.value = { pageNum: 1, pageSize: 10 }
   getList()
-}
-
-// 多选变化
-const handleSelectionChange = (val: AfterSaleSummary[]) => {
-  multipleSelection.value = val
 }
 
 // 分页大小变化
