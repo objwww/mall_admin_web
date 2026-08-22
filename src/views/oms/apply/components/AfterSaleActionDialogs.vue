@@ -29,16 +29,12 @@ const emit = defineEmits<{
 const approveDialogVisible = ref(false)
 const approveForm = ref<AfterSaleApproveParam>({
   companyAddressId: undefined,
-  refundAmount: undefined,
-  handleMan: 'admin',
   handleNote: '',
 })
 
 const openApproveDialog = () => {
   approveForm.value = {
     companyAddressId: props.detail.serviceType === 2 ? props.companyAddressList[0]?.id : undefined,
-    refundAmount: props.detail.applyAmount,
-    handleMan: 'admin',
     handleNote: '',
   }
   approveDialogVisible.value = true
@@ -49,14 +45,7 @@ const handleApprove = async () => {
     ElMessage.warning('请选择退货地址')
     return
   }
-  if (!approveForm.value.refundAmount || approveForm.value.refundAmount <= 0) {
-    ElMessage.warning('请输入退款金额')
-    return
-  }
-  if (approveForm.value.refundAmount > props.detail.applyAmount) {
-    ElMessage.warning('退款金额不能超过申请金额')
-    return
-  }
+  // Release A: 退款金额由系统计算（= applyAmount），客户端不输入
   try {
     await approveAfterSaleAPI(props.detail.id, approveForm.value)
     ElMessage.success('审核通过')
@@ -70,12 +59,12 @@ const handleApprove = async () => {
 // 拒绝对话框
 const rejectDialogVisible = ref(false)
 const rejectForm = ref<AfterSaleRejectParam>({
-  handleMan: 'admin',
   reason: '',
+  handleNote: '',
 })
 
 const openRejectDialog = () => {
-  rejectForm.value = { handleMan: 'admin', reason: '' }
+  rejectForm.value = { reason: '', handleNote: '' }
   rejectDialogVisible.value = true
 }
 
@@ -99,7 +88,6 @@ const receiveDialogVisible = ref(false)
 const receiveForm = ref<AfterSaleReceiveParam>({
   inspectionResult: 1,
   restock: true,
-  receiveMan: 'admin',
   receiveNote: '',
 })
 
@@ -107,7 +95,6 @@ const openReceiveDialog = () => {
   receiveForm.value = {
     inspectionResult: 1,
     restock: true,
-    receiveMan: 'admin',
     receiveNote: '',
   }
   receiveDialogVisible.value = true
@@ -140,7 +127,6 @@ const shipExchangeForm = ref<AfterSaleShipParam>({
   deliveryCode: '',
   deliveryCompany: '',
   deliverySn: '',
-  handleMan: 'admin',
   handleNote: '',
 })
 
@@ -149,7 +135,6 @@ const openShipExchangeDialog = () => {
     deliveryCode: '',
     deliveryCompany: '',
     deliverySn: '',
-    handleMan: 'admin',
     handleNote: '',
   }
   shipExchangeDialogVisible.value = true
@@ -201,11 +186,10 @@ defineExpose({
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="退款金额" required>
-        <el-input-number v-model="approveForm.refundAmount" :min="0.01" :max="detail.applyAmount" :precision="2" style="width: 100%" />
-      </el-form-item>
-      <el-form-item label="处理人">
-        <el-input v-model="approveForm.handleMan" />
+      <el-form-item label="退款金额">
+        <!-- Release A: 退款金额由系统计算（= applyAmount），客户端只读显示，不可编辑 -->
+        <span class="readonly-amount">¥{{ detail.applyAmount?.toFixed(2) || '0.00' }}</span>
+        <span class="amount-tip">（系统计算，不可修改）</span>
       </el-form-item>
       <el-form-item label="处理备注">
         <el-input v-model="approveForm.handleNote" type="textarea" :rows="2" />
@@ -223,8 +207,8 @@ defineExpose({
       <el-form-item label="拒绝原因" required>
         <el-input v-model="rejectForm.reason" type="textarea" :rows="3" placeholder="请输入拒绝原因" />
       </el-form-item>
-      <el-form-item label="处理人">
-        <el-input v-model="rejectForm.handleMan" />
+      <el-form-item label="处理备注">
+        <el-input v-model="rejectForm.handleNote" type="textarea" :rows="2" />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -248,9 +232,6 @@ defineExpose({
         <el-switch v-model="receiveForm.restock" :disabled="receiveForm.inspectionResult !== 1" />
         <span v-if="receiveForm.inspectionResult !== 1" style="color: #999; margin-left: 10px">商品非完好状态不能恢复库存</span>
       </el-form-item>
-      <el-form-item label="收货人">
-        <el-input v-model="receiveForm.receiveMan" />
-      </el-form-item>
       <el-form-item label="收货备注">
         <el-input v-model="receiveForm.receiveNote" type="textarea" :rows="2" />
       </el-form-item>
@@ -273,9 +254,6 @@ defineExpose({
       <el-form-item label="物流单号" required>
         <el-input v-model="shipExchangeForm.deliverySn" placeholder="请输入物流单号" />
       </el-form-item>
-      <el-form-item label="操作人">
-        <el-input v-model="shipExchangeForm.handleMan" />
-      </el-form-item>
       <el-form-item label="备注">
         <el-input v-model="shipExchangeForm.handleNote" type="textarea" :rows="2" />
       </el-form-item>
@@ -286,3 +264,16 @@ defineExpose({
     </template>
   </el-dialog>
 </template>
+
+<style scoped>
+.readonly-amount {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f56c6c;
+}
+.amount-tip {
+  margin-left: 8px;
+  font-size: 12px;
+  color: #909399;
+}
+</style>

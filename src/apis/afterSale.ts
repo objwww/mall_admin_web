@@ -14,11 +14,11 @@ import type {
 import http from '@/utils/http'
 
 /**
- * 后台售后列表
+ * 后台售后列表（Release A: 路径按权限边界拆分 /afterSale/read/**）
  */
 export function getAfterSaleListAPI(params: AfterSaleQueryParam) {
   return http<CommonPage<AfterSaleSummary>>({
-    url: '/afterSale/list',
+    url: '/afterSale/read/list',
     method: 'get',
     params,
   })
@@ -29,17 +29,18 @@ export function getAfterSaleListAPI(params: AfterSaleQueryParam) {
  */
 export function getAfterSaleDetailAPI(id: number) {
   return http<AfterSaleDetail>({
-    url: `/afterSale/${id}`,
+    url: `/afterSale/read/${id}`,
     method: 'get',
   })
 }
 
 /**
- * 审核通过
+ * 审核通过（/afterSale/audit/**）
+ * Release A: 客户端不传 handleMan/returnAmount，操作人和金额由后端决定
  */
 export function approveAfterSaleAPI(id: number, data: AfterSaleApproveParam) {
   return http({
-    url: `/afterSale/${id}/approve`,
+    url: `/afterSale/audit/${id}/approve`,
     method: 'post',
     data,
   })
@@ -50,18 +51,18 @@ export function approveAfterSaleAPI(id: number, data: AfterSaleApproveParam) {
  */
 export function rejectAfterSaleAPI(id: number, data: AfterSaleRejectParam) {
   return http({
-    url: `/afterSale/${id}/reject`,
+    url: `/afterSale/audit/${id}/reject`,
     method: 'post',
     data,
   })
 }
 
 /**
- * 商家确认收货
+ * 商家确认收货（/afterSale/receive/**）
  */
 export function receiveAfterSaleAPI(id: number, data: AfterSaleReceiveParam) {
   return http({
-    url: `/afterSale/${id}/receive`,
+    url: `/afterSale/receive/${id}`,
     method: 'post',
     data,
   })
@@ -72,7 +73,7 @@ export function receiveAfterSaleAPI(id: number, data: AfterSaleReceiveParam) {
  */
 export function shipExchangeAfterSaleAPI(id: number, data: AfterSaleShipParam) {
   return http({
-    url: `/afterSale/${id}/shipExchange`,
+    url: `/afterSale/shipExchange/${id}`,
     method: 'post',
     data,
   })

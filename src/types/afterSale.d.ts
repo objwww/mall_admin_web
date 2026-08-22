@@ -179,25 +179,25 @@ export interface AfterSaleDetail {
   allowedActions: string[]
 }
 
-/** 审核通过参数 */
+/**
+ * 审核通过参数（Release A: Command 化）
+ * 客户端不传 handleMan/returnAmount，操作人和金额由后端决定
+ */
 export interface AfterSaleApproveParam {
   companyAddressId?: number
-  refundAmount?: number
-  handleMan: string
   handleNote?: string
 }
 
 /** 审核拒绝参数 */
 export interface AfterSaleRejectParam {
-  handleMan: string
   reason: string
+  handleNote?: string
 }
 
 /** 确认收货参数 */
 export interface AfterSaleReceiveParam {
   inspectionResult: InspectionResult
   restock: boolean
-  receiveMan: string
   receiveNote?: string
 }
 
@@ -206,7 +206,6 @@ export interface AfterSaleShipParam {
   deliveryCode: string
   deliveryCompany: string
   deliverySn: string
-  handleMan: string
   handleNote?: string
 }
 

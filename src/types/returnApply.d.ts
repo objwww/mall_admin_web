@@ -81,22 +81,29 @@ export type OmsOrderReturnApplyResult = OmsOrderReturnApply & {
   companyAddress: OmsCompanyAddress
 }
 
-/** 退货申请状态更新参数 */
-export type OmsUpdateStatusParam = {
-  /** 服务单号 */
-  id: number
-  /** 收货地址关联id */
-  companyAddressId: number
-  /** 确认退款金额 */
-  returnAmount: number
+/**
+ * 售后审核通过请求（Release A: Command 化）
+ * 客户端不传 handleMan/returnAmount，操作人和金额由后端决定
+ */
+export type ApproveAfterSaleRequest = {
+  /** 退货地址ID（退货退款时必填） */
+  companyAddressId?: number
   /** 处理备注 */
+  handleNote?: string
+}
+
+/**
+ * 售后审核拒绝请求
+ */
+export type RejectAfterSaleRequest = {
+  /** 拒绝原因（必填） */
   handleNote: string
-  /** 处理人 */
-  handleMan: string
+}
+
+/**
+ * 确认收到退货请求
+ */
+export type ReceiveAfterSaleRequest = {
   /** 收货备注 */
-  receiveNote: string
-  /** 收货人 */
-  receiveMan: string
-  /** 申请状态：1->退货中；2->已完成；3->已拒绝 */
-  status: number
+  receiveNote?: string
 }
