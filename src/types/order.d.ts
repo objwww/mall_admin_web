@@ -186,6 +186,8 @@ export type OmsOrderDetail = OmsOrder & {
   orderItemList: OmsOrderItem[]
   /** 订单操作记录列表 */
   historyList: OmsOrderOperateHistory[]
+  /** 当前管理员可执行的订单动作，由后端按订单事实计算 */
+  allowedActions: string[]
 }
 
 /** 订单收货人信息参数 */

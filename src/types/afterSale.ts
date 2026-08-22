@@ -161,6 +161,7 @@ export interface AfterSaleDetail {
   returnShipDeadline?: string
   returnAddress?: ReturnAddressInfo
   buyerShipment?: BuyerShipmentInfo
+  sellerShipment?: BuyerShipmentInfo
   refund?: RefundInfo
   inspectionResult?: InspectionResult
   restockStatus?: number

@@ -16,7 +16,7 @@ defineProps<{
         :key="index"
         :timestamp="formatDateTime(item.createTime)"
         placement="top"
-        :type="index === 0 ? 'primary' : ''"
+        :type="index === 0 ? 'primary' : undefined"
       >
         <div class="timeline-content">
           <span class="timeline-action">{{ item.actionText || item.action }}</span>

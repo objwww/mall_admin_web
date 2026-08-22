@@ -103,6 +103,7 @@ import { getAfterSaleListAPI } from '@/apis/afterSale'
 import type { AfterSaleSummary, AfterSaleQueryParam } from '@/types/afterSale'
 
 const router = useRouter()
+type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | undefined
 
 // 状态选项（新售后状态码）
 const statusOptions = [
@@ -176,9 +177,9 @@ const typeText = (type: number): string => {
 }
 
 // 售后类型标签颜色
-const typeTagType = (type: number): string => {
-  const map: Record<number, string> = { 1: 'info', 2: 'warning', 3: 'success' }
-  return map[type] || ''
+const typeTagType = (type: number): TagType => {
+  const map: Record<number, TagType> = { 1: 'info', 2: 'warning', 3: 'success' }
+  return map[type]
 }
 
 // 售后状态文本
@@ -187,12 +188,12 @@ const statusText = (status: number): string => {
 }
 
 // 售后状态标签颜色
-const statusTagType = (status: number): string => {
+const statusTagType = (status: number): TagType => {
   if (status === 70) return 'success'
   if (status === 80) return 'danger'
   if (status === 90 || status === 91) return 'info'
   if (status >= 10 && status <= 60) return 'warning'
-  return ''
+  return undefined
 }
 
 onMounted(() => {

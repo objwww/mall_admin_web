@@ -91,7 +91,7 @@ const productOption = computed(() => {
           },
           borderRadius: [0, 8, 8, 0],
         },
-        data: productList.map(p => p.sales_count).reverse(),
+        data: productList.value.map(p => p.sales_count).reverse(),
       },
     ],
   }
