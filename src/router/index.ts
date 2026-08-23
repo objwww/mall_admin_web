@@ -41,6 +41,19 @@ export const constantRouterMap: RouteRecordExt[] = [
 
 export const asyncRouterMap: RouteRecordExt[] = [
   {
+    path: '/ops',
+    component: Layout,
+    redirect: '/ops/deployment',
+    name: 'opsCenter',
+    meta: { title: '运维中心', icon: 'monitor' },
+    children: [
+      { path: 'deployment', name: 'deploymentOps', component: () => import('@/views/ops/index.vue'), meta: { title: '版本部署与回滚', icon: 'monitor', opsKind: 'deployment' } },
+      { path: 'config', name: 'configOps', component: () => import('@/views/ops/index.vue'), meta: { title: '配置差异与快照', icon: 'monitor', opsKind: 'config' } },
+      { path: 'monitoring', name: 'monitoringOps', component: () => import('@/views/ops/index.vue'), meta: { title: '生产监控与告警', icon: 'monitor', opsKind: 'monitoring' } },
+      { path: 'cmdb', name: 'cmdbOps', component: () => import('@/views/ops/index.vue'), meta: { title: 'CMDB资产', icon: 'monitor', opsKind: 'cmdb' } },
+    ],
+  },
+  {
     path: '/pms',
     component: Layout,
     redirect: '/pms/product',
