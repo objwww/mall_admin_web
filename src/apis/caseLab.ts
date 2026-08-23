@@ -18,6 +18,10 @@ export interface CaseFamily {
 export interface CaseLabStatus {
   enabled: boolean
   environment: string
+  environmentAllowed: boolean
+  configurable: boolean
+  paymentEndpoint: string
+  sessionDirectory: string
   killSwitchOn: boolean
   sessionDirectoryConfigured: boolean
   sessionDirectoryReady: boolean
@@ -62,6 +66,9 @@ export const getCaseEventsAPI = (id: string) =>
 export const createCaseSessionAPI = (data: {
   familyId: string; ttlSeconds: number; maxAffectedRequests: number; scope: Record<string, string>
 }) => http<string>({ url: '/caseLab/manage/sessions', method: 'post', data })
+export const saveCaseRuntimeConfigAPI = (data: {
+  enabled: boolean; paymentEndpoint: string; killSwitchOn: boolean
+}) => http<CaseLabStatus>({ url: '/caseLab/manage/config', method: 'post', data })
 export const stopCaseSessionAPI = (id: string) =>
   http<boolean>({ url: `/caseLab/manage/sessions/${id}/stop`, method: 'post' })
 export const createCaseTicketAPI = (id: string) =>

@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import {
   createCaseSessionAPI, createCaseTicketAPI, getCaseEventsAPI, getCaseFamiliesAPI,
-  getCaseSessionsAPI, getCaseStatusAPI, stopCaseSessionAPI, type CaseFamily,
+  getCaseSessionsAPI, getCaseStatusAPI, saveCaseRuntimeConfigAPI, stopCaseSessionAPI, type CaseFamily,
   type CaseLabSession, type CaseLabStatus, type CaseLabTriggerEvent,
 } from '@/apis/caseLab'
 import { hasPermission } from '@/utils/permission'
@@ -18,9 +18,11 @@ const eventsVisible = ref(false)
 const events = ref<CaseLabTriggerEvent[]>([])
 const router = useRouter()
 const form = reactive({ familyId: '', scopeValue: '', ttlSeconds: 60, maxAffectedRequests: 1 })
+const runtimeForm = reactive({ enabled: false, paymentEndpoint: '', killSwitchOn: true })
 const catalogFilter = reactive({ keyword: '', groupCode: '', executionStatus: '' })
 const canManage = computed(() => hasPermission('caselab:manage'))
 const canCreate = computed(() => canManage.value && runtimeStatus.value?.ready === true)
+const canConfigure = computed(() => canManage.value && runtimeStatus.value?.configurable === true)
 const selectedFamily = computed(() => families.value.find(item => item.familyId === form.familyId))
 const executableFamilies = computed(() => families.value.filter(item => item.executionStatus === 'EXECUTABLE'))
 const groupOptions = computed(() => Array.from(new Map(families.value
@@ -77,6 +79,11 @@ const load = async () => {
   try {
     const [statusResult, familyResult] = await Promise.allSettled([getCaseStatusAPI(), getCaseFamiliesAPI()])
     runtimeStatus.value = statusResult.status === 'fulfilled' ? statusResult.value.data : undefined
+    if (runtimeStatus.value) Object.assign(runtimeForm, {
+      enabled: runtimeStatus.value.enabled,
+      paymentEndpoint: runtimeStatus.value.paymentEndpoint || '',
+      killSwitchOn: runtimeStatus.value.killSwitchOn,
+    })
     families.value = familyResult.status === 'fulfilled' ? (familyResult.value.data || []) : []
     if (!form.familyId) form.familyId = executableFamilies.value[0]?.familyId || ''
     sessions.value = runtimeStatus.value?.ready ? ((await getCaseSessionsAPI()).data || []) : []
@@ -128,6 +135,17 @@ const createSession = async () => {
   await load()
 }
 
+const saveRuntimeConfig = async () => {
+  if (!canConfigure.value) return ElMessage.warning(runtimeStatus.value?.message || '当前实例不能修改隔离配置')
+  if (runtimeForm.enabled && !/(sandbox|mock|localhost|127\.0\.0\.1)/i.test(runtimeForm.paymentEndpoint)) {
+    return ElMessage.warning('启用故障注入时，支付端点必须使用沙箱、Mock或本机地址')
+  }
+  await ElMessageBox.confirm('配置会被管理端和商城端共享读取，确认保存？', '保存隔离环境配置', { type: 'warning' })
+  await saveCaseRuntimeConfigAPI({ ...runtimeForm })
+  ElMessage.success('隔离环境配置已保存')
+  await load()
+}
+
 const stop = async (row: CaseLabSession) => {
   await ElMessageBox.confirm(`确认停止会话 ${row.sessionId}？`, '停止故障注入', { type: 'warning' })
   await stopCaseSessionAPI(row.sessionId)
@@ -158,6 +176,21 @@ onMounted(load)
       :title="alertTitle" :type="alertType" :closable="false" show-icon
       :description="`${alertDescription} 生产环境禁止开启；智能代理与商城端不会获得故障判定标准。`"
     />
+
+    <el-card shadow="never" class="runtime-card">
+      <template #header><strong>隔离环境配置</strong></template>
+      <el-form label-width="140px">
+        <el-form-item label="当前环境"><el-input :model-value="runtimeStatus?.environment || '未配置'" disabled /></el-form-item>
+        <el-form-item label="共享会话目录"><el-input :model-value="runtimeStatus?.sessionDirectory || '未配置'" disabled /></el-form-item>
+        <el-form-item label="Mock支付端点"><el-input v-model="runtimeForm.paymentEndpoint" :disabled="!canConfigure" placeholder="例如：http://mock-payment:18080" /></el-form-item>
+        <el-form-item label="启用故障注入"><el-switch v-model="runtimeForm.enabled" :disabled="!canConfigure" /></el-form-item>
+        <el-form-item label="全局停止开关"><el-switch v-model="runtimeForm.killSwitchOn" :disabled="!canConfigure" /></el-form-item>
+        <el-form-item>
+          <el-button type="primary" :disabled="!canConfigure" @click="saveRuntimeConfig">保存隔离配置</el-button>
+          <span class="runtime-note">环境类型和共享目录属于启动围栏，生产实例不能在页面改成隔离环境。</span>
+        </el-form-item>
+      </el-form>
+    </el-card>
 
     <el-card shadow="never" class="guide-card">
       <template #header><strong>如何注入故障</strong></template>
@@ -300,5 +333,5 @@ onMounted(load)
 </template>
 
 <style scoped>
-.guide-card,.catalog-card{margin:16px 0}.header{display:flex;align-items:center;justify-content:space-between}.summary-tag{margin-left:8px}.catalog-filter{display:grid;grid-template-columns:minmax(260px,1fr) 220px 220px;gap:12px;margin-bottom:16px}.family-detail{margin:12px 48px}.guide-note{margin:12px 4px 0;color:#606266}.event-card+.event-card{margin-top:12px}.event-actions{margin-top:12px;text-align:right}
+.runtime-card,.guide-card,.catalog-card{margin:16px 0}.runtime-card :deep(.el-input){max-width:680px}.runtime-note{margin-left:12px;color:#909399}.header{display:flex;align-items:center;justify-content:space-between}.summary-tag{margin-left:8px}.catalog-filter{display:grid;grid-template-columns:minmax(260px,1fr) 220px 220px;gap:12px;margin-bottom:16px}.family-detail{margin:12px 48px}.guide-note{margin:12px 4px 0;color:#606266}.event-card+.event-card{margin-top:12px}.event-actions{margin-top:12px;text-align:right}
 </style>
