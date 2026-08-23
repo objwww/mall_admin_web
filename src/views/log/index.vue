@@ -3,11 +3,13 @@ import { ref, onMounted, reactive } from 'vue'
 import { Search, RefreshLeft } from '@element-plus/icons-vue'
 import { getAccessLogListAPI, getErrorLogListAPI, getOperationLogListAPI } from '@/apis/statistics'
 import { formatTs } from '@/utils/datetime'
+import { useRoute } from 'vue-router'
 
 const activeTab = ref('access')
+const route = useRoute()
 
 /* ============ 访问日志 ============ */
-const accessQuery = reactive({ pageNum: 1, pageSize: 10, uri: '', method: '', status: null as number | null })
+const accessQuery = reactive({ pageNum: 1, pageSize: 10, uri: '', method: '', status: null as number | null, traceId: '' })
 const accessList = ref<Record<string, any>[]>([])
 const accessTotal = ref(0)
 const accessLoading = ref(false)
@@ -24,7 +26,7 @@ const getAccessList = async () => {
 }
 
 /* ============ 错误日志 ============ */
-const errorQuery = reactive({ pageNum: 1, pageSize: 10, uri: '', errorType: '' })
+const errorQuery = reactive({ pageNum: 1, pageSize: 10, uri: '', errorType: '', traceId: '' })
 const errorList = ref<Record<string, any>[]>([])
 const errorTotal = ref(0)
 const errorLoading = ref(false)
@@ -41,7 +43,7 @@ const getErrorList = async () => {
 }
 
 /* ============ 操作日志 ============ */
-const opQuery = reactive({ pageNum: 1, pageSize: 10, description: '', type: '', operatorId: '' })
+const opQuery = reactive({ pageNum: 1, pageSize: 10, description: '', type: '', operatorId: '', traceId: '' })
 const opList = ref<Record<string, any>[]>([])
 const opTotal = ref(0)
 const opLoading = ref(false)
@@ -68,6 +70,9 @@ const methodTag = (m: string): 'success' | 'warning' | 'danger' | undefined => {
 }
 
 onMounted(() => {
+  const traceId = typeof route.query.traceId === 'string' ? route.query.traceId : ''
+  accessQuery.traceId = errorQuery.traceId = opQuery.traceId = traceId
+  if (['access', 'error', 'operation'].includes(String(route.query.tab))) activeTab.value = String(route.query.tab)
   getAccessList()
   getErrorList()
   getOpList()
@@ -81,11 +86,12 @@ onMounted(() => {
         <!-- 访问日志 -->
         <el-tab-pane label="访问日志" name="access">
           <div class="filter-bar">
-            <el-input v-model="accessQuery.uri" placeholder="URI" clearable style="width: 220px" @keyup.enter="getAccessList" />
+            <el-input v-model="accessQuery.uri" placeholder="接口地址" clearable style="width: 220px" @keyup.enter="getAccessList" />
             <el-input v-model="accessQuery.method" placeholder="方法" clearable style="width: 100px" @keyup.enter="getAccessList" />
             <el-input-number v-model="accessQuery.status" placeholder="状态码" :controls="false" style="width: 110px" />
+            <el-input v-model="accessQuery.traceId" placeholder="追踪编号" clearable style="width: 260px" @keyup.enter="getAccessList" />
             <el-button type="primary" :icon="Search" @click="getAccessList">查询</el-button>
-            <el-button :icon="RefreshLeft" @click="() => { accessQuery.uri = ''; accessQuery.method = ''; accessQuery.status = null; getAccessList() }">重置</el-button>
+            <el-button :icon="RefreshLeft" @click="() => { accessQuery.uri = ''; accessQuery.method = ''; accessQuery.status = null; accessQuery.traceId = ''; getAccessList() }">重置</el-button>
           </div>
           <el-table :data="accessList" v-loading="accessLoading" border stripe size="small">
             <el-table-column label="ID" prop="id" width="60" align="center" />
@@ -94,7 +100,7 @@ onMounted(() => {
                 <el-tag size="small" :type="methodTag(scope.row.method)">{{ scope.row.method }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="URI" prop="uri" min-width="220" show-overflow-tooltip />
+            <el-table-column label="接口地址" prop="uri" min-width="220" show-overflow-tooltip />
             <el-table-column label="状态码" width="80" align="center">
               <template #default="scope">
                 <el-tag size="small" :type="scope.row.status >= 500 ? 'danger' : scope.row.status >= 400 ? 'warning' : 'success'">{{ scope.row.status }}</el-tag>
@@ -107,7 +113,7 @@ onMounted(() => {
             </el-table-column>
             <el-table-column label="耗时(ms)" prop="spend_time" width="90" align="center" />
             <el-table-column label="IP" prop="ip" width="130" align="center" />
-            <el-table-column label="TraceId" prop="trace_id" min-width="150" show-overflow-tooltip />
+            <el-table-column label="追踪编号" prop="trace_id" min-width="150" show-overflow-tooltip />
             <el-table-column label="时间" width="170" align="center">
               <template #default="scope">{{ formatTs(scope.row.create_time) }}</template>
             </el-table-column>
@@ -120,10 +126,11 @@ onMounted(() => {
         <!-- 错误日志 -->
         <el-tab-pane label="错误日志" name="error">
           <div class="filter-bar">
-            <el-input v-model="errorQuery.uri" placeholder="URI" clearable style="width: 220px" @keyup.enter="getErrorList" />
+            <el-input v-model="errorQuery.uri" placeholder="接口地址" clearable style="width: 220px" @keyup.enter="getErrorList" />
             <el-input v-model="errorQuery.errorType" placeholder="异常类型" clearable style="width: 220px" @keyup.enter="getErrorList" />
+            <el-input v-model="errorQuery.traceId" placeholder="追踪编号" clearable style="width: 260px" @keyup.enter="getErrorList" />
             <el-button type="primary" :icon="Search" @click="getErrorList">查询</el-button>
-            <el-button :icon="RefreshLeft" @click="() => { errorQuery.uri = ''; errorQuery.errorType = ''; getErrorList() }">重置</el-button>
+            <el-button :icon="RefreshLeft" @click="() => { errorQuery.uri = ''; errorQuery.errorType = ''; errorQuery.traceId = ''; getErrorList() }">重置</el-button>
           </div>
           <el-table :data="errorList" v-loading="errorLoading" border stripe size="small">
             <el-table-column type="expand">
@@ -137,10 +144,10 @@ onMounted(() => {
                 <el-tag size="small" :type="methodTag(scope.row.method)">{{ scope.row.method }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="URI" prop="uri" min-width="180" show-overflow-tooltip />
+            <el-table-column label="接口地址" prop="uri" min-width="180" show-overflow-tooltip />
             <el-table-column label="异常类型" prop="error_type" min-width="220" show-overflow-tooltip />
             <el-table-column label="错误信息" prop="error_msg" min-width="180" show-overflow-tooltip />
-            <el-table-column label="TraceId" prop="trace_id" min-width="140" show-overflow-tooltip />
+            <el-table-column label="追踪编号" prop="trace_id" min-width="140" show-overflow-tooltip />
             <el-table-column label="时间" width="170" align="center">
               <template #default="scope">{{ formatTs(scope.row.create_time) }}</template>
             </el-table-column>
@@ -156,8 +163,9 @@ onMounted(() => {
             <el-input v-model="opQuery.description" placeholder="操作描述" clearable style="width: 220px" @keyup.enter="getOpList" />
             <el-input v-model="opQuery.type" placeholder="操作类型" clearable style="width: 120px" @keyup.enter="getOpList" />
             <el-input v-model="opQuery.operatorId" placeholder="操作人ID" clearable style="width: 120px" @keyup.enter="getOpList" />
+            <el-input v-model="opQuery.traceId" placeholder="追踪编号" clearable style="width: 260px" @keyup.enter="getOpList" />
             <el-button type="primary" :icon="Search" @click="getOpList">查询</el-button>
-            <el-button :icon="RefreshLeft" @click="() => { opQuery.description = ''; opQuery.type = ''; opQuery.operatorId = ''; getOpList() }">重置</el-button>
+            <el-button :icon="RefreshLeft" @click="() => { opQuery.description = ''; opQuery.type = ''; opQuery.operatorId = ''; opQuery.traceId = ''; getOpList() }">重置</el-button>
           </div>
           <el-table :data="opList" v-loading="opLoading" border stripe size="small">
             <el-table-column label="ID" prop="id" width="60" align="center" />
@@ -170,7 +178,7 @@ onMounted(() => {
             <el-table-column label="操作描述" prop="description" min-width="220" show-overflow-tooltip />
             <el-table-column label="方法" prop="method" min-width="200" show-overflow-tooltip />
             <el-table-column label="耗时(ms)" prop="cost_time" width="90" align="center" />
-            <el-table-column label="TraceId" prop="trace_id" min-width="140" show-overflow-tooltip />
+            <el-table-column label="追踪编号" prop="trace_id" min-width="140" show-overflow-tooltip />
             <el-table-column label="时间" width="170" align="center">
               <template #default="scope">{{ formatTs(scope.row.create_time) }}</template>
             </el-table-column>

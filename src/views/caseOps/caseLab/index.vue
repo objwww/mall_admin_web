@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import {
   createCaseSessionAPI, createCaseTicketAPI, getCaseEventsAPI, getCaseFamiliesAPI,
   getCaseSessionsAPI, getCaseStatusAPI, stopCaseSessionAPI, type CaseFamily,
-  type CaseLabSession, type CaseLabStatus,
+  type CaseLabSession, type CaseLabStatus, type CaseLabTriggerEvent,
 } from '@/apis/caseLab'
 import { hasPermission } from '@/utils/permission'
 
@@ -14,11 +15,22 @@ const runtimeStatus = ref<CaseLabStatus>()
 const loading = ref(false)
 const dialogVisible = ref(false)
 const eventsVisible = ref(false)
-const events = ref<string[]>([])
+const events = ref<CaseLabTriggerEvent[]>([])
+const router = useRouter()
 const form = reactive({ familyId: '', scopeValue: '', ttlSeconds: 60, maxAffectedRequests: 1 })
+const catalogFilter = reactive({ keyword: '', groupCode: '', executionStatus: '' })
 const canManage = computed(() => hasPermission('caselab:manage'))
 const canCreate = computed(() => canManage.value && runtimeStatus.value?.ready === true)
 const selectedFamily = computed(() => families.value.find(item => item.familyId === form.familyId))
+const executableFamilies = computed(() => families.value.filter(item => item.executionStatus === 'EXECUTABLE'))
+const groupOptions = computed(() => Array.from(new Map(families.value
+  .map(item => [item.groupCode, item.groupName])).entries()).map(([code, name]) => ({ code, name })))
+const visibleFamilies = computed(() => families.value.filter((item) => {
+  const keyword = catalogFilter.keyword.trim().toLowerCase()
+  return (!catalogFilter.groupCode || item.groupCode === catalogFilter.groupCode)
+    && (!catalogFilter.executionStatus || item.executionStatus === catalogFilter.executionStatus)
+    && (!keyword || `${item.familyId} ${item.name} ${item.groupName} ${item.faultType}`.toLowerCase().includes(keyword))
+}))
 const scopeText: Record<string, string> = {
   orderId: '订单编号', refundId: '退款单编号', payOrderId: '支付单编号', requestId: '下单请求号',
 }
@@ -37,6 +49,14 @@ const triggerGuide: Record<string, string> = {
   'PTS-POINTS-SKIP-001': '取消该笔使用过积分的待付款订单。',
   'REF-PERSIST-BLOCK-001': '在退款管理中执行该测试退款单。',
   'RAC-PAY-CANCEL-001': '同时发起该订单的支付成功处理与取消操作。',
+}
+const faultLocation: Record<string, string> = {
+  'ORD-ORDER-CREATE-001': '订单事务已经提交、响应返回商城客户端之前。',
+  'PAY-ALIPAY-NOTIFY-001': '支付宝通知任务确认支付单成功之后、更新商城订单之前。',
+  'PAY-STOCK-SKIP-001': '订单从待付款变为待发货之后、扣减真实库存之前。',
+  'PTS-POINTS-SKIP-001': '取消订单并恢复优惠券之后、返还用户积分之前。',
+  'REF-PERSIST-BLOCK-001': '退款渠道返回成功之后、本地退款成功状态和审计记录落库之前。',
+  'RAC-PAY-CANCEL-001': '支付处理与取消处理各自执行订单状态条件更新之前，共两个并发会合点。',
 }
 const currentScopeLabel = computed(() => scopeText[selectedFamily.value?.scopeKey || ''] || '精确作用域')
 const createBlockedReason = computed(() => {
@@ -58,7 +78,7 @@ const load = async () => {
     const [statusResult, familyResult] = await Promise.allSettled([getCaseStatusAPI(), getCaseFamiliesAPI()])
     runtimeStatus.value = statusResult.status === 'fulfilled' ? statusResult.value.data : undefined
     families.value = familyResult.status === 'fulfilled' ? (familyResult.value.data || []) : []
-    if (!form.familyId) form.familyId = families.value[0]?.familyId || ''
+    if (!form.familyId) form.familyId = executableFamilies.value[0]?.familyId || ''
     sessions.value = runtimeStatus.value?.ready ? ((await getCaseSessionsAPI()).data || []) : []
   } finally {
     loading.value = false
@@ -66,6 +86,7 @@ const load = async () => {
 }
 
 const openCreate = (family?: CaseFamily) => {
+  if (family && family.executionStatus !== 'EXECUTABLE') return ElMessage.warning(family.executionNote)
   if (!canCreate.value) return ElMessage.warning(createBlockedReason.value)
   if (family) form.familyId = family.familyId
   form.scopeValue = ''
@@ -74,11 +95,19 @@ const openCreate = (family?: CaseFamily) => {
 
 const validScope = (family: CaseFamily) => family.scopeKey === 'requestId'
   ? /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(form.scopeValue)
-  : /^[1-9][0-9]*$/.test(form.scopeValue)
+  : Boolean(family.scopeKey) && /^[1-9][0-9]*$/.test(form.scopeValue)
+
+const familyBlockedReason = (family: CaseFamily) => family.executionStatus === 'PLANNED'
+  ? family.executionNote : createBlockedReason.value
+const familyCanCreate = (family: CaseFamily) => family.executionStatus === 'EXECUTABLE' && canCreate.value
+const statusText = (status: CaseFamily['executionStatus']) => status === 'EXECUTABLE' ? '已接入' : '待接入'
+const scopeKeysDisplay = (family: CaseFamily) => family.scopeKeys
+  .map(key => scopeText[key] || key).join('、') || '-'
 
 const createSession = async () => {
   const family = selectedFamily.value
   if (!family) return ElMessage.warning('请选择故障族')
+  if (!family.scopeKey) return ElMessage.warning('该故障尚未接入真实作用域')
   if (!validScope(family)) {
     return ElMessage.warning(family.scopeKey === 'requestId'
       ? '下单请求号最长64位，只能包含字母、数字、点、下划线、冒号或短横线'
@@ -106,9 +135,16 @@ const stop = async (row: CaseLabSession) => {
   await load()
 }
 const showEvents = async (row: CaseLabSession) => {
-  events.value = (await getCaseEventsAPI(row.sessionId)).data || []
+  events.value = ((await getCaseEventsAPI(row.sessionId)).data || []).flatMap((item) => {
+    try { return [JSON.parse(item) as CaseLabTriggerEvent] } catch { return [] }
+  })
   eventsVisible.value = true
 }
+const openLog = (traceId?: string, tab = 'access') => {
+  if (!traceId) return ElMessage.warning('当前记录没有追踪编号')
+  router.push({ path: '/log', query: { traceId, tab } })
+}
+const eventOrderId = (item: CaseLabTriggerEvent) => item.orderId || item.scope?.orderId || '-'
 const createTicket = async (row: CaseLabSession) => {
   const { data } = await createCaseTicketAPI(row.sessionId)
   ElMessage.success(`合成工单已就绪，工单编号：${data}`)
@@ -133,23 +169,57 @@ onMounted(load)
       <p class="guide-note">创建会话只是在真实业务路径上布置故障，不会自动生成假订单或假退款。</p>
     </el-card>
 
-    <el-empty v-if="!loading && !families.length" description="故障族读取失败，请确认当前账号拥有故障注入查看权限" />
-    <el-card v-for="family in families" :key="family.familyId" shadow="never" class="family-card">
+    <el-card shadow="never" class="catalog-card">
       <template #header>
         <div class="header">
-          <strong>{{ family.familyId }} · {{ family.name }}</strong>
-          <el-tooltip :disabled="canCreate" :content="createBlockedReason" placement="top">
-            <span><el-button type="danger" :disabled="!canCreate" @click="openCreate(family)">创建此故障</el-button></span>
-          </el-tooltip>
+          <strong>故障目录与分组</strong>
+          <div>
+            <el-tag>共 {{ families.length }} 条</el-tag>
+            <el-tag type="success" class="summary-tag">已接入 {{ executableFamilies.length }} 条</el-tag>
+            <el-tag type="info" class="summary-tag">待接入 {{ families.length - executableFamilies.length }} 条</el-tag>
+          </div>
         </div>
       </template>
-      <el-descriptions :column="2" border>
-        <el-descriptions-item label="真实故障点">{{ family.hookIds.join('、') }}</el-descriptions-item>
-        <el-descriptions-item label="注入动作">{{ actionText[family.action] || family.action }}</el-descriptions-item>
-        <el-descriptions-item label="精确作用域">{{ scopeText[family.scopeKey] || family.scopeKey }}</el-descriptions-item>
-        <el-descriptions-item label="判断标准">{{ family.oracle }}</el-descriptions-item>
-        <el-descriptions-item label="创建后的操作" :span="2">{{ triggerGuide[family.familyId] }}</el-descriptions-item>
-      </el-descriptions>
+      <div class="catalog-filter">
+        <el-input v-model="catalogFilter.keyword" clearable placeholder="搜索故障编号、名称、故障组或类型" />
+        <el-select v-model="catalogFilter.groupCode" clearable placeholder="全部故障组">
+          <el-option v-for="item in groupOptions" :key="item.code" :label="`${item.name}（${item.code}）`" :value="item.code" />
+        </el-select>
+        <el-select v-model="catalogFilter.executionStatus" clearable placeholder="全部接入状态">
+          <el-option label="已接入真实故障点" value="EXECUTABLE" />
+          <el-option label="待接入真实故障点" value="PLANNED" />
+        </el-select>
+      </div>
+      <el-table v-loading="loading" :data="visibleFamilies" border stripe max-height="620" empty-text="没有符合条件的故障">
+        <el-table-column type="expand">
+          <template #default="scope">
+            <el-descriptions :column="2" border class="family-detail">
+              <el-descriptions-item label="故障场景" :span="2">{{ scope.row.name }}</el-descriptions-item>
+              <el-descriptions-item label="故障位置" :span="2">{{ faultLocation[scope.row.familyId] || '尚未织入真实业务路径' }}</el-descriptions-item>
+              <el-descriptions-item label="技术故障点">{{ scope.row.hookIds.join('、') || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="注入动作">{{ scope.row.action ? (actionText[scope.row.action] || scope.row.action) : '-' }}</el-descriptions-item>
+              <el-descriptions-item label="可关联作用域">{{ scopeKeysDisplay(scope.row) }}</el-descriptions-item>
+              <el-descriptions-item label="判断标准">{{ scope.row.oracle }}</el-descriptions-item>
+              <el-descriptions-item label="接入说明" :span="2">{{ scope.row.executionNote }}</el-descriptions-item>
+              <el-descriptions-item v-if="scope.row.executionStatus === 'EXECUTABLE'" label="创建后的操作" :span="2">{{ triggerGuide[scope.row.familyId] }}</el-descriptions-item>
+            </el-descriptions>
+          </template>
+        </el-table-column>
+        <el-table-column label="故障编号" prop="familyId" width="220" />
+        <el-table-column label="所属故障组" prop="groupName" min-width="150" />
+        <el-table-column label="故障类型" prop="faultType" min-width="170" />
+        <el-table-column label="故障场景" prop="name" min-width="280" show-overflow-tooltip />
+        <el-table-column label="接入状态" width="110">
+          <template #default="scope"><el-tag :type="scope.row.executionStatus === 'EXECUTABLE' ? 'success' : 'info'">{{ statusText(scope.row.executionStatus) }}</el-tag></template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="scope">
+            <el-tooltip :disabled="familyCanCreate(scope.row)" :content="familyBlockedReason(scope.row)" placement="top">
+              <span><el-button type="danger" :disabled="!familyCanCreate(scope.row)" @click="openCreate(scope.row)">创建此故障</el-button></span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-card>
 
     <el-card shadow="never">
@@ -167,6 +237,12 @@ onMounted(load)
       <el-table v-loading="loading" :data="sessions" border stripe empty-text="暂无故障注入会话">
         <el-table-column label="会话编号" prop="sessionId" min-width="280" />
         <el-table-column label="故障族" prop="familyId" width="210" />
+        <el-table-column label="布置追踪编号" min-width="190" show-overflow-tooltip>
+          <template #default="scope">
+            <el-button v-if="scope.row.sessionTraceId" link type="primary" @click="openLog(scope.row.sessionTraceId, 'operation')">{{ scope.row.sessionTraceId }}</el-button>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" prop="status" width="100" />
         <el-table-column label="作用域" min-width="190"><template #default="scope">{{ scopeDisplay(scope.row) }}</template></el-table-column>
         <el-table-column label="最大影响" prop="maxAffectedRequests" width="100" />
@@ -186,7 +262,7 @@ onMounted(load)
       <el-form label-width="120px">
         <el-form-item label="故障族">
           <el-select v-model="form.familyId" style="width:100%">
-            <el-option v-for="item in families" :key="item.familyId" :label="`${item.familyId} · ${item.name}`" :value="item.familyId" />
+            <el-option v-for="item in executableFamilies" :key="item.familyId" :label="`${item.familyId} · ${item.name}`" :value="item.familyId" />
           </el-select>
         </el-form-item>
         <el-form-item :label="currentScopeLabel">
@@ -201,13 +277,28 @@ onMounted(load)
         <el-button type="danger" @click="createSession">确认并启用</el-button>
       </template>
     </el-dialog>
-    <el-dialog v-model="eventsVisible" title="触发证据" width="720px">
+    <el-dialog v-model="eventsVisible" title="触发证据与日志定位" width="920px">
       <el-empty v-if="!events.length" description="尚未触发" />
-      <pre v-for="(item, index) in events" :key="index">{{ item }}</pre>
+      <el-card v-for="(item, index) in events" :key="index" shadow="never" class="event-card">
+        <el-descriptions :column="2" border>
+          <el-descriptions-item label="触发时间">{{ item.firedAt }}</el-descriptions-item>
+          <el-descriptions-item label="真实订单编号">{{ eventOrderId(item) }}</el-descriptions-item>
+          <el-descriptions-item label="真实业务追踪编号" :span="2">
+            <el-button v-if="item.businessTraceId" link type="primary" @click="openLog(item.businessTraceId)">{{ item.businessTraceId }}</el-button>
+            <span v-else>-</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="故障点" :span="2">{{ item.hookId }}</el-descriptions-item>
+          <el-descriptions-item label="精确作用域" :span="2">{{ JSON.stringify(item.scope) }}</el-descriptions-item>
+        </el-descriptions>
+        <div class="event-actions">
+          <el-button type="primary" :disabled="!item.businessTraceId" @click="openLog(item.businessTraceId)">查访问日志</el-button>
+          <el-button type="danger" :disabled="!item.businessTraceId" @click="openLog(item.businessTraceId, 'error')">查错误日志</el-button>
+        </div>
+      </el-card>
     </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.guide-card,.family-card{margin:16px 0}.header{display:flex;align-items:center;justify-content:space-between}.guide-note{margin:12px 4px 0;color:#606266}pre{padding:12px;background:#f5f7fa;white-space:pre-wrap;word-break:break-all}
+.guide-card,.catalog-card{margin:16px 0}.header{display:flex;align-items:center;justify-content:space-between}.summary-tag{margin-left:8px}.catalog-filter{display:grid;grid-template-columns:minmax(260px,1fr) 220px 220px;gap:12px;margin-bottom:16px}.family-detail{margin:12px 48px}.guide-note{margin:12px 4px 0;color:#606266}.event-card+.event-card{margin-top:12px}.event-actions{margin-top:12px;text-align:right}
 </style>
