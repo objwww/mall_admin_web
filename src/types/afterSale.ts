@@ -1,4 +1,4 @@
-/** 售后类型：1->仅退款；2->退货退款；3->换货 */
+/** 后台售后类型：1->仅退款；2->退货退款；3->换货 */
 export type AfterSaleType = 1 | 2 | 3
 
 /** 售后范围：1->整单；2->订单明细 */
@@ -161,6 +161,7 @@ export interface AfterSaleDetail {
   returnShipDeadline?: string
   returnAddress?: ReturnAddressInfo
   buyerShipment?: BuyerShipmentInfo
+  sellerShipment?: BuyerShipmentInfo
   refund?: RefundInfo
   inspectionResult?: InspectionResult
   restockStatus?: number
@@ -179,25 +180,25 @@ export interface AfterSaleDetail {
   allowedActions: string[]
 }
 
-/** 审核通过参数 */
+/**
+ * 审核通过参数（Release A: Command 化）
+ * 客户端不传 handleMan/returnAmount，操作人和金额由后端决定
+ */
 export interface AfterSaleApproveParam {
   companyAddressId?: number
-  refundAmount?: number
-  handleMan: string
   handleNote?: string
 }
 
 /** 审核拒绝参数 */
 export interface AfterSaleRejectParam {
-  handleMan: string
   reason: string
+  handleNote?: string
 }
 
 /** 确认收货参数 */
 export interface AfterSaleReceiveParam {
   inspectionResult: InspectionResult
   restock: boolean
-  receiveMan: string
   receiveNote?: string
 }
 
@@ -206,7 +207,6 @@ export interface AfterSaleShipParam {
   deliveryCode: string
   deliveryCompany: string
   deliverySn: string
-  handleMan: string
   handleNote?: string
 }
 

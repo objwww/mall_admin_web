@@ -57,9 +57,14 @@ const getOpList = async () => {
   }
 }
 
-const methodTag = (m: string) => {
-  const map: Record<string, string> = { GET: '', POST: 'success', PUT: 'warning', DELETE: 'danger' }
-  return map[m] || ''
+const methodTag = (m: string): 'success' | 'warning' | 'danger' | undefined => {
+  const map: Record<string, 'success' | 'warning' | 'danger' | undefined> = {
+    GET: undefined,
+    POST: 'success',
+    PUT: 'warning',
+    DELETE: 'danger',
+  }
+  return map[m]
 }
 
 onMounted(() => {

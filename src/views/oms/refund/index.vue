@@ -95,6 +95,7 @@ const total = ref(0)
 const listLoading = ref(false)
 const detailVisible = ref(false)
 const currentRefund = ref<OmsOrderRefund | null>(null)
+type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | undefined
 
 const getList = async () => {
   listLoading.value = true
@@ -127,7 +128,7 @@ const handlePageChange = (val: number) => {
 const handleRetry = async (row: OmsOrderRefund) => {
   try {
     await ElMessageBox.confirm(`确认重新退款？退款单号：${row.refundSn}`, '提示', { type: 'warning' })
-    await retryRefundAPI(row.id, 'admin')
+    await retryRefundAPI(row.id)
     ElMessage.success('重试已受理')
     getList()
   } catch (e: any) {
@@ -156,7 +157,7 @@ const handleDetail = async (row: OmsOrderRefund) => {
 }
 
 const statusText = (status: number): string => refundStatusText[status] || '未知'
-const statusTagType = (status: number): string => {
+const statusTagType = (status: number): TagType => {
   if (status === 2) return 'success'
   if (status === 3) return 'danger'
   if (status === 1) return 'warning'

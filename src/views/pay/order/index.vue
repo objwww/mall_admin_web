@@ -21,7 +21,8 @@ const getList = async () => {
 }
 
 const statusLabel = (s: number) => ({ 0: '未支付', 10: '支付成功', 20: '已退款', 30: '已关闭' }[s] || '未知')
-const statusType = (s: number) => ({ 0: 'warning', 10: 'success', 20: 'info', 30: 'info' }[s] || 'info')
+const statusType = (s: number): 'warning' | 'success' | 'info' =>
+  ({ 0: 'warning', 10: 'success', 20: 'info', 30: 'info' } as Record<number, 'warning' | 'success' | 'info'>)[s] || 'info'
 const channelLabel = (c: string) => (c === 'alipay' ? '支付宝' : c === 'wechat' ? '微信支付' : c)
 
 onMounted(() => getList())

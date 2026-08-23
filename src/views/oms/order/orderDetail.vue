@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox, type CascaderOption } from 'element-plus'
 import { Warning } from '@element-plus/icons-vue'
-import { getOrderDetailByIdAPI, orderUpdateReceiverInfoAPI, orderUpdateMoneyInfoAPI, orderUpdateCloseAPI, orderUpdateNoteAPI, orderDeleteByIdsAPI } from '@/apis/order'
+import { getOrderDetailByIdAPI, orderUpdateReceiverInfoAPI, orderUpdateMoneyInfoAPI, orderUpdateCloseAPI, orderUpdateNoteAPI, orderDeleteByIdsAPI, orderConfirmReceiveAPI } from '@/apis/order'
 import LogisticsDialog from '@/views/oms/order/components/logisticsDialog.vue'
 import type { OmsOrder, OmsOrderDetail, OmsReceiverInfoParam } from '@/types/order'
 import { formatDateTime } from '@/utils/datetime'
@@ -17,6 +17,8 @@ const route = useRoute()
 const id = ref<number>()
 // 订单详情数据
 const order = ref<OmsOrderDetail>({} as OmsOrderDetail)
+const allowedActions = computed(() => order.value.allowedActions || [])
+const hasAction = (action: string) => allowedActions.value.includes(action)
 
 // 组件挂载后获取订单详情
 onMounted(async () => {
@@ -36,11 +38,6 @@ const selectedRegions = ref<string[]>([])
 const moneyDialogVisible = ref(false)
 // 费用信息
 const moneyInfo = ref({ orderId: 0, freightAmount: 0, discountAmount: 0, status: 0 })
-
-// 发送站内信对话框可见性
-const messageDialogVisible = ref(false)
-// 站内信内容
-const message = ref({ title: '', content: '' })
 
 // 关闭订单对话框可见性
 const closeDialogVisible = ref(false)
@@ -257,28 +254,6 @@ const handleUpdateMoneyInfo = async () => {
   order.value = response.data
 }
 
-// 显示发送站内信对话框
-const showMessageDialog = () => {
-  messageDialogVisible.value = true
-  message.value.title = ''
-  message.value.content = ''
-}
-
-// 处理发送站内信
-const handleSendMessage = async () => {
-  await ElMessageBox.confirm('是否要发送站内信?', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  })
-  console.log('站内信功能暂未实现，模拟发送。。。')
-  messageDialogVisible.value = false
-  ElMessage({
-    type: 'success',
-    message: '发送成功!'
-  })
-}
-
 // 显示关闭订单对话框
 const showCloseOrderDialog = () => {
   closeDialogVisible.value = true
@@ -361,6 +336,19 @@ const showLogisticsDialog = () => {
   logisticsDialogVisible.value = true
 }
 
+// 后台确认收货
+const handleConfirmReceive = async () => {
+  await ElMessageBox.confirm('是否确认该订单已收货？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+  await orderConfirmReceiveAPI({ ids: order.value.id.toString() })
+  ElMessage.success('确认收货成功')
+  const response = await getOrderDetailByIdAPI(id.value!)
+  order.value = response.data
+}
+
 </script>
 
 <template>
@@ -380,27 +368,14 @@ const showLogisticsDialog = () => {
           <Warning />
         </el-icon>
         <span class="color-danger">当前订单状态：{{ formatStatus(order.status) }}</span>
-        <div class="operate-button-container" v-show="order.status === 0">
-          <el-button size="small" @click="showUpdateReceiverDialog">修改收货人信息</el-button>
-          <el-button size="small" @click="showUpdateMoneyDialog">修改费用信息</el-button>
-          <el-button size="small" @click="showMessageDialog">发送站内信</el-button>
-          <el-button size="small" @click="showCloseOrderDialog">关闭订单</el-button>
-          <el-button size="small" @click="showMarkOrderDialog">备注订单</el-button>
-        </div>
-        <div class="operate-button-container" v-show="order.status === 1">
-          <el-button size="small" @click="showUpdateReceiverDialog">修改收货人信息</el-button>
-          <el-button size="small" @click="showMessageDialog">发送站内信</el-button>
-          <el-button size="small">取消订单</el-button>
-          <el-button size="small" @click="showMarkOrderDialog">备注订单</el-button>
-        </div>
-        <div class="operate-button-container" v-show="order.status === 2 || order.status === 3">
-          <el-button size="small" @click="showLogisticsDialog">订单跟踪</el-button>
-          <el-button size="small" @click="showMessageDialog">发送站内信</el-button>
-          <el-button size="small" @click="showMarkOrderDialog">备注订单</el-button>
-        </div>
-        <div class="operate-button-container" v-show="order.status === 4">
-          <el-button size="small" @click="handleDeleteOrder">删除订单</el-button>
-          <el-button size="small" @click="showMarkOrderDialog">备注订单</el-button>
+        <div class="operate-button-container">
+          <el-button v-if="hasAction('ADMIN_UPDATE_RECEIVER')" size="small" @click="showUpdateReceiverDialog">修改收货人信息</el-button>
+          <el-button v-if="hasAction('ADMIN_UPDATE_MONEY')" size="small" @click="showUpdateMoneyDialog">修改费用信息</el-button>
+          <el-button v-if="hasAction('ADMIN_CLOSE')" size="small" @click="showCloseOrderDialog">关闭订单</el-button>
+          <el-button v-if="hasAction('ADMIN_CONFIRM_RECEIPT')" size="small" @click="handleConfirmReceive">确认收货</el-button>
+          <el-button v-if="hasAction('ADMIN_VIEW_LOGISTICS')" size="small" @click="showLogisticsDialog">订单跟踪</el-button>
+          <el-button v-if="hasAction('ADMIN_DELETE')" size="small" @click="handleDeleteOrder">删除订单</el-button>
+          <el-button v-if="hasAction('ADMIN_NOTE')" size="small" @click="showMarkOrderDialog">备注订单</el-button>
         </div>
       </div>
       <!-- 其余模板内容保持不变，由于篇幅限制，这里省略了大部分模板代码 -->
@@ -650,23 +625,6 @@ const showLogisticsDialog = () => {
         <span class="dialog-footer">
           <el-button @click="moneyDialogVisible = false">取 消</el-button>
           <el-button type="primary" @click="handleUpdateMoneyInfo">确 定</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    <el-dialog title="发送站内信" v-model="messageDialogVisible" width="40%">
-      <el-form :model="message" ref="receiverInfoForm" label-width="150px">
-        <el-form-item label="标题：">
-          <el-input v-model="message.title" style="width: 200px"></el-input>
-        </el-form-item>
-        <el-form-item label="内容：">
-          <el-input v-model="message.content" type="textarea" :rows="3">
-          </el-input>
-        </el-form-item>
-      </el-form>
-      <template v-slot:footer>
-        <span class="dialog-footer">
-          <el-button @click="messageDialogVisible = false">取 消</el-button>
-          <el-button type="primary" @click="handleSendMessage">确 定</el-button>
         </span>
       </template>
     </el-dialog>

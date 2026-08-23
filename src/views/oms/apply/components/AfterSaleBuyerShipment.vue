@@ -2,14 +2,19 @@
 import { formatDateTime } from '@/utils/datetime'
 import type { BuyerShipmentInfo } from '@/types/afterSale'
 
-defineProps<{
+withDefaults(defineProps<{
   shipment: BuyerShipmentInfo
-}>()
+  title?: string
+  timeLabel?: string
+}>(), {
+  title: '买家退货物流',
+  timeLabel: '寄出时间',
+})
 </script>
 
 <template>
   <el-card v-if="shipment" shadow="never">
-    <span class="font-title-medium">买家退货物流</span>
+    <span class="font-title-medium">{{ title }}</span>
     <div class="form-container-border">
       <el-row>
         <el-col :span="6" class="form-border form-left-bg font-small">快递公司</el-col>
@@ -18,7 +23,7 @@ defineProps<{
         <el-col class="form-border font-small" :span="6">{{ shipment.deliverySn }}</el-col>
       </el-row>
       <el-row>
-        <el-col :span="6" class="form-border form-left-bg font-small">寄出时间</el-col>
+        <el-col :span="6" class="form-border form-left-bg font-small">{{ timeLabel }}</el-col>
         <el-col class="form-border font-small" :span="18">{{ formatDateTime(shipment.deliveryTime) }}</el-col>
       </el-row>
     </div>

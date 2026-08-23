@@ -30,7 +30,7 @@ const fileInput = ref()
 const handleFileChange = (evt: Event) => {
   const input = evt.target as HTMLInputElement
   if (input.files && input.files.length > 0) {
-    selectedFile.value = input.files[0]
+    selectedFile.value = input.files.item(0)
   }
 }
 

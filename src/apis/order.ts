@@ -54,6 +54,17 @@ export function orderUpdateDeliveryAPI(data: OmsOrderDeliveryParam[]) {
 }
 
 /**
+ * 后台确认收货
+ */
+export function orderConfirmReceiveAPI(params: { ids: string }) {
+  return http({
+    url: '/order/update/confirmReceive',
+    method: 'post',
+    params,
+  })
+}
+
+/**
  * 获取订单详情：订单信息、商品信息、操作记录
  */
 export function getOrderDetailByIdAPI(id: number) {

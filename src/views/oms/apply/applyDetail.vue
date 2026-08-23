@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getAfterSaleDetailAPI, getCompanyAddressListAPI } from '@/apis/afterSale'
-import type { AfterSaleDetail, AfterSaleStatus, OmsCompanyAddress } from '@/types/afterSale'
+import type { AfterSaleDetail, AfterSaleStatus, RefundStatus, OmsCompanyAddress } from '@/types/afterSale'
 import { AfterSaleStatusText, RefundStatusText } from '@/types/afterSale'
 
 // 引入独立组件
@@ -30,7 +30,7 @@ const getDetail = async () => {
   loading.value = true
   try {
     const res = await getAfterSaleDetailAPI(id.value)
-    detail.value = res
+    detail.value = res.data
   } catch (e: any) {
     console.error('加载售后详情失败', e)
   } finally {
@@ -59,14 +59,14 @@ onMounted(() => {
 const statusText = computed(() => AfterSaleStatusText[detail.value.status as AfterSaleStatus] || '未知')
 const refundStatusText = computed(() => {
   if (!detail.value.refund) return '-'
-  return RefundStatusText[detail.value.refund.status as any] || '未知'
+  return RefundStatusText[detail.value.refund.status as RefundStatus] || '未知'
 })
 const allowedActions = computed(() => detail.value.allowedActions || [])
 const canApprove = computed(() => allowedActions.value.includes('ADMIN_APPROVE'))
 const canReject = computed(() => allowedActions.value.includes('ADMIN_REJECT'))
 const canReceive = computed(() => allowedActions.value.includes('ADMIN_RECEIVE'))
 // 换货发出：售后类型为换货(3)且状态为等待商家发货(50)
-const canShipExchange = computed(() => detail.value.serviceType === 3 && detail.value.status === 50)
+const canShipExchange = computed(() => allowedActions.value.includes('ADMIN_SHIP_EXCHANGE'))
 
 // 操作成功后刷新
 const handleActionSuccess = () => {
@@ -119,6 +119,15 @@ const handleActionSuccess = () => {
 
     <!-- 买家物流 -->
     <AfterSaleBuyerShipment v-if="detail.buyerShipment" :shipment="detail.buyerShipment" class="section-card" />
+
+    <!-- 商家换货发出物流 -->
+    <AfterSaleBuyerShipment
+      v-if="detail.sellerShipment"
+      title="换货发出物流"
+      time-label="发出时间"
+      :shipment="detail.sellerShipment"
+      class="section-card"
+    />
 
     <!-- 验货信息 -->
     <AfterSaleInspectionInfo v-if="detail.inspectionResult" :detail="detail" class="section-card" />

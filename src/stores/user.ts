@@ -9,7 +9,6 @@ export const useUserStore = defineStore(
     // 用户信息
     const userInfo = ref<UserInfo>({
       username: '',
-      password: '',
       avatar: '',
       roles: [],
       token: '',
@@ -22,7 +21,6 @@ export const useUserStore = defineStore(
       const tokenStr = res.data.tokenHead + res.data.token
       userInfo.value.token = tokenStr
       userInfo.value.username = loginParam.username
-      userInfo.value.password = loginParam.password
       await getUserInfo()
     }
 

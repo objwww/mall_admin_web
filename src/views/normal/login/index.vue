@@ -51,7 +51,6 @@ function validatePass(rule: unknown, value: string, callback: (error?: Error) =>
 // 组件挂载完成后调用
 onMounted(() => {
   loginForm.username = userStore.userInfo.username
-  loginForm.password = userStore.userInfo.password
   if (loginForm.username === undefined || loginForm.username == null || loginForm.username === '') {
     loginForm.username = 'admin';
   }
@@ -88,7 +87,7 @@ const handleLogin = () => {
         <div style="text-align: center">
           <svg-icon icon-class="login-mall" style="width: 56px;height: 56px;color: #409EFF"></svg-icon>
         </div>
-        <h2 class="login-title color-main">mall-admin-web</h2>
+        <h2 class="login-title color-main">商城管理后台</h2>
         <el-form-item prop="username">
           <el-input name="username" type="text" v-model="loginForm.username" autoComplete="on" placeholder="请输入用户名">
             <template #prefix>

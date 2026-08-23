@@ -21,7 +21,8 @@ const getList = async () => {
 }
 
 const statusLabel = (s: number) => ({ 0: '等待通知', 10: '通知成功', 20: '通知失败', 21: '请求成功结果失败', 22: '请求失败' }[s] || '未知')
-const statusType = (s: number) => ({ 0: 'warning', 10: 'success', 20: 'danger', 21: 'danger', 22: 'danger' }[s] || 'info')
+const statusType = (s: number): 'warning' | 'success' | 'danger' | 'info' =>
+  ({ 0: 'warning', 10: 'success', 20: 'danger', 21: 'danger', 22: 'danger' } as Record<number, 'warning' | 'success' | 'danger'>)[s] || 'info'
 const typeLabel = (t: number) => (t === 1 ? '支付订单' : t === 2 ? '退款订单' : '类型' + t)
 
 /* 通知日志 */

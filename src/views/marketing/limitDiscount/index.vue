@@ -102,7 +102,8 @@ const handleDeleteProduct = async (row: Record<string, any>) => {
 }
 
 const statusLabel = (s: number) => ({ 0: '未开始', 1: '进行中', 2: '已结束' }[s] || '未开始')
-const statusType = (s: number) => ({ 0: 'info', 1: 'success', 2: 'warning' }[s] || 'info')
+const statusType = (s: number): 'info' | 'success' | 'warning' =>
+  ({ 0: 'info', 1: 'success', 2: 'warning' } as Record<number, 'info' | 'success' | 'warning'>)[s] || 'info'
 
 onMounted(() => getList())
 </script>
