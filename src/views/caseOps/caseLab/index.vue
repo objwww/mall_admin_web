@@ -66,9 +66,9 @@ onMounted(load)
   <div class="app-container">
     <el-alert title="仅限隔离测试环境" type="error" :closable="false" show-icon description="生产环境不得开启故障注入实验室。Agent 与商城端看不到故障点、动作、判定标准和触发证据。" />
     <el-card v-for="family in families" :key="family.familyId" shadow="never" class="family-card">
-      <template #header><strong>{{ family.familyId }} · {{ family.name }}</strong></template>
+      <template #header><strong>{{ family.familyId }} · {{ family.displayName }}</strong></template>
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="故障点">{{ family.hookId }}</el-descriptions-item>
+        <el-descriptions-item label="故障点">{{ family.hookIds ? family.hookIds.join(", ") : "-" }}</el-descriptions-item>
         <el-descriptions-item label="注入动作">{{ family.action }}</el-descriptions-item>
         <el-descriptions-item label="精确作用域">{{ family.scopeKey }}</el-descriptions-item>
         <el-descriptions-item label="隐藏判定标准">{{ family.oracle }}</el-descriptions-item>
