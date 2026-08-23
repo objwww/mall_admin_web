@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { formatTs } from '@/utils/datetime'
 import {
@@ -14,6 +14,7 @@ import {
   type TicketContextType,
   type TicketStatus,
 } from '@/apis/support'
+import { hasPermission } from '@/utils/permission'
 
 const statusText: Record<TicketStatus, string> = {
   OPEN: '待处理', PROCESSING: '处理中', WAIT_USER: '等待用户', RESOLVED: '已解决', CLOSED: '已关闭',
@@ -36,6 +37,7 @@ const detail = ref<SupportTicket | null>(null)
 const assignForm = reactive({ assigneeId: undefined as number | undefined, assigneeName: '' })
 const actionForm = reactive({ status: '' as TicketStatus | '', note: '', comment: '' })
 const contextForm = reactive({ refType: 'ORDER' as TicketContextType, refValue: '' })
+const canManage = computed(() => hasPermission('support:ticket:manage'))
 
 const loadList = async () => {
   loading.value = true
@@ -160,7 +162,7 @@ onMounted(loadList)
         <el-table-column label="处理人" prop="assigneeName" width="120" />
         <el-table-column label="业务引用" prop="primaryAnchorValue" min-width="160" show-overflow-tooltip />
         <el-table-column label="创建时间" width="170"><template #default="scope">{{ formatTs(scope.row.createTime) }}</template></el-table-column>
-        <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button link type="primary" @click="openDetail(scope.row)">处理</el-button></template></el-table-column>
+        <el-table-column label="操作" width="90" fixed="right"><template #default="scope"><el-button v-if="canManage" link type="primary" @click="openDetail(scope.row)">处理</el-button><span v-else>-</span></template></el-table-column>
       </el-table>
       <el-pagination class="pagination" background layout="total, sizes, prev, pager, next" :total="total"
         v-model:current-page="query.pageNum" v-model:page-size="query.pageSize" :page-sizes="[10, 20, 50]"
@@ -186,18 +188,18 @@ onMounted(loadList)
           <el-table-column label="关联编号" prop="refValue" min-width="220" />
           <el-table-column label="来源" width="100"><template #default="scope">{{ scope.row.source === 'MANUAL' ? '人工关联' : '创建时关联' }}</template></el-table-column>
         </el-table>
-        <div class="action-row context-row">
+        <div v-if="canManage" class="action-row context-row">
           <el-select v-model="contextForm.refType" style="width: 150px"><el-option v-for="(label, value) in contextText" :key="value" :label="label" :value="value" /></el-select>
           <el-input v-model="contextForm.refValue" placeholder="业务活动编号" />
           <el-button type="primary" @click="submitContext">添加关联</el-button>
         </div>
 
-        <h3>分配处理人</h3>
+        <template v-if="canManage"><h3>分配处理人</h3>
         <div class="action-row"><el-input-number v-model="assignForm.assigneeId" :min="1" placeholder="处理人编号" /><el-input v-model="assignForm.assigneeName" placeholder="处理人姓名" /><el-button type="primary" @click="submitAssign">分配</el-button></div>
         <h3>变更状态</h3>
         <div class="action-row"><el-select v-model="actionForm.status" placeholder="目标状态"><el-option v-for="(label, value) in statusText" :key="value" :label="label" :value="value" /></el-select><el-input v-model="actionForm.note" placeholder="处理说明（可选）" /><el-button type="primary" @click="submitStatus">更新</el-button></div>
         <h3>回复用户</h3>
-        <div class="action-row"><el-input v-model="actionForm.comment" type="textarea" :rows="2" placeholder="请输入回复内容" /><el-button type="primary" @click="submitComment">发送</el-button></div>
+        <div class="action-row"><el-input v-model="actionForm.comment" type="textarea" :rows="2" placeholder="请输入回复内容" /><el-button type="primary" @click="submitComment">发送</el-button></div></template>
         <h3>处理时间线</h3>
         <el-timeline>
           <el-timeline-item v-for="(item, index) in detail.timeline || []" :key="index" :timestamp="formatTs(item.createTime)">

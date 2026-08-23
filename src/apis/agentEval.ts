@@ -8,6 +8,7 @@ export interface AgentEvalCase {
   passed: number | boolean
   durationMs?: number
   traceId?: string
+  runtimeRunId?: string
   createTime: number
 }
 
@@ -36,6 +37,11 @@ export const createAgentEvalAPI = (data: { name: string; agentName: string; case
 export const submitAgentEvalCaseAPI = (id: number, data: {
   caseId: string; expectedResult: string; actualResult?: string; durationMs?: number; traceId?: string
 }) => http<boolean>({ url: `/agentEval/manage/${id}/case`, method: 'post', data })
+export const executeAgentEvalCaseAPI = (id: number, data: {
+  caseId: string; input: string; expectedResult: string
+}) => http<{ runtimeRunId: string; traceId?: string; durationMs: number; passed: boolean }>({
+  url: `/agentEval/manage/${id}/execute-case`, method: 'post', data,
+})
 export const finishAgentEvalAPI = (id: number) =>
   http<AgentEvalRun>({ url: `/agentEval/manage/${id}/finish`, method: 'post' })
 export const createAgentEvalTicketAPI = (id: number) =>

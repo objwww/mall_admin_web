@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { getAfterSaleDetailAPI, getCompanyAddressListAPI } from '@/apis/afterSale'
 import type { AfterSaleDetail, AfterSaleStatus, RefundStatus, OmsCompanyAddress } from '@/types/afterSale'
 import { AfterSaleStatusText, RefundStatusText } from '@/types/afterSale'
+import { hasPermission } from '@/utils/permission'
 
 // 引入独立组件
 import AfterSaleGoodsInfo from './components/AfterSaleGoodsInfo.vue'
@@ -62,11 +63,11 @@ const refundStatusText = computed(() => {
   return RefundStatusText[detail.value.refund.status as RefundStatus] || '未知'
 })
 const allowedActions = computed(() => detail.value.allowedActions || [])
-const canApprove = computed(() => allowedActions.value.includes('ADMIN_APPROVE'))
-const canReject = computed(() => allowedActions.value.includes('ADMIN_REJECT'))
-const canReceive = computed(() => allowedActions.value.includes('ADMIN_RECEIVE'))
+const canApprove = computed(() => hasPermission('oms:afterSale:audit') && allowedActions.value.includes('ADMIN_APPROVE'))
+const canReject = computed(() => hasPermission('oms:afterSale:audit') && allowedActions.value.includes('ADMIN_REJECT'))
+const canReceive = computed(() => hasPermission('oms:afterSale:receive') && allowedActions.value.includes('ADMIN_RECEIVE'))
 // 换货发出：售后类型为换货(3)且状态为等待商家发货(50)
-const canShipExchange = computed(() => allowedActions.value.includes('ADMIN_SHIP_EXCHANGE'))
+const canShipExchange = computed(() => hasPermission('oms:afterSale:ship') && allowedActions.value.includes('ADMIN_SHIP_EXCHANGE'))
 
 // 操作成功后刷新
 const handleActionSuccess = () => {

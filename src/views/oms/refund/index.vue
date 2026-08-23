@@ -49,8 +49,8 @@
       </el-table-column>
       <el-table-column label="操作" width="160" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 3" type="text" size="small" @click="handleRetry(row)">重新退款</el-button>
-          <el-button v-if="row.status === 1" type="text" size="small" @click="handleReconcile(row)">查询渠道</el-button>
+          <el-button v-if="canRetry && row.status === 3" type="text" size="small" @click="handleRetry(row)">重新退款</el-button>
+          <el-button v-if="canReconcile && row.status === 1" type="text" size="small" @click="handleReconcile(row)">查询渠道</el-button>
           <el-button type="text" size="small" @click="handleDetail(row)">详情</el-button>
         </template>
       </el-table-column>
@@ -107,10 +107,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils/datetime'
+import { hasPermission } from '@/utils/permission'
 import { getRefundListAPI, getRefundDetailAPI, getRefundLogsAPI, retryRefundAPI, reconcileRefundAPI } from '@/apis/refund'
 import type { OmsOrderRefund, RefundAuditLog, RefundQueryParam } from '@/types/refund'
 import {
@@ -129,6 +130,8 @@ const detailVisible = ref(false)
 const currentRefund = ref<OmsOrderRefund | null>(null)
 const auditLogs = ref<RefundAuditLog[]>([])
 const logsLoading = ref(false)
+const canRetry = computed(() => hasPermission('oms:refund:retry'))
+const canReconcile = computed(() => hasPermission('oms:refund:reconcile'))
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | undefined
 
 const getList = async () => {

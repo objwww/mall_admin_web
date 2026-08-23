@@ -220,6 +220,12 @@ export const asyncRouterMap: RouteRecordExt[] = [
         component: () => import('@/views/caseOps/agentEval/index.vue'),
         meta: { title: 'Agent离线评测', icon: 'code' },
       },
+      {
+        path: 'agentOps',
+        name: 'agentOps',
+        component: () => import('@/views/caseOps/agentOps/index.vue'),
+        meta: { title: '智能代理在线监控', icon: 'monitor' },
+      },
     ],
   },
   {

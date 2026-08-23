@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { formatTs } from '@/utils/datetime'
 import {
-  createAgentEvalAPI, createAgentEvalTicketAPI, finishAgentEvalAPI, getAgentEvalDetailAPI, getAgentEvalListAPI,
+  createAgentEvalAPI, createAgentEvalTicketAPI, executeAgentEvalCaseAPI, finishAgentEvalAPI, getAgentEvalDetailAPI, getAgentEvalListAPI,
   submitAgentEvalCaseAPI, type AgentEvalRun,
 } from '@/apis/agentEval'
+import { hasPermission } from '@/utils/permission'
 
 const query = reactive({ pageNum: 1, pageSize: 20, status: '', keyword: '' })
 const list = ref<AgentEvalRun[]>([])
@@ -16,6 +17,8 @@ const detailVisible = ref(false)
 const detail = ref<AgentEvalRun | null>(null)
 const createForm = reactive({ name: '', agentName: '', caseFamilyId: 'REF-002', caseSessionId: '' })
 const caseForm = reactive({ caseId: '', expectedResult: '', actualResult: '', durationMs: undefined as number | undefined, traceId: '' })
+const autoForm = reactive({ caseId: '', input: '', expectedResult: '' })
+const canManage = computed(() => hasPermission('agent:eval:manage'))
 
 const loadList = async () => {
   loading.value = true
@@ -49,6 +52,15 @@ const submitCase = async () => {
   Object.assign(caseForm, { caseId: '', expectedResult: '', actualResult: '', durationMs: undefined, traceId: '' })
   await reloadDetail()
 }
+const executeCase = async () => {
+  if (!detail.value || !autoForm.caseId.trim() || !autoForm.input.trim() || !autoForm.expectedResult.trim()) {
+    return ElMessage.warning('用例编号、公开题面和隐藏判定标准不能为空')
+  }
+  const { data } = await executeAgentEvalCaseAPI(detail.value.id, autoForm)
+  ElMessage.success(`真实智能代理执行完成：${data.passed ? '通过' : '未通过'}，运行编号 ${data.runtimeRunId}`)
+  Object.assign(autoForm, { caseId: '', input: '', expectedResult: '' })
+  await reloadDetail()
+}
 const finish = async () => {
   if (!detail.value) return
   await ElMessageBox.confirm('完成后评测和用例结果将冻结，不能继续修改。确认完成？', '完成评测', { type: 'warning' })
@@ -66,17 +78,17 @@ onMounted(loadList)
 
 <template>
   <div class="app-container">
-    <el-alert title="离线评测与线上监控分离" type="info" :closable="false" show-icon description="隐藏 Oracle 仅在本管理页面与评测库中使用，禁止注入 Agent 上下文。" />
+    <el-alert title="离线评测与线上监控分离" type="info" :closable="false" show-icon description="隐藏判定标准仅在本管理页面与评测库中使用，绝不会发送给智能代理运行时。" />
     <el-card shadow="never" class="main-card">
       <div class="filter-bar">
         <el-input v-model="query.keyword" placeholder="评测名称、Agent或故障族" clearable style="width:260px" @keyup.enter="loadList" />
         <el-select v-model="query.status" placeholder="状态" clearable style="width:130px"><el-option label="进行中" value="RUNNING" /><el-option label="已完成" value="FINISHED" /></el-select>
         <el-button type="primary" @click="loadList">查询</el-button><el-button @click="Object.assign(query,{pageNum:1,status:'',keyword:''});loadList()">重置</el-button>
-        <el-button type="primary" class="create" @click="createVisible=true">创建评测</el-button>
+        <el-button v-if="canManage" type="primary" class="create" @click="createVisible=true">创建评测</el-button>
       </div>
       <el-table v-loading="loading" :data="list" border stripe>
         <el-table-column label="编号" prop="id" width="70" /><el-table-column label="评测名称" prop="name" min-width="180" />
-        <el-table-column label="Agent" prop="agentName" width="150" /><el-table-column label="故障族" prop="caseFamilyId" width="120" />
+        <el-table-column label="智能代理" prop="agentName" width="150" /><el-table-column label="故障族" prop="caseFamilyId" width="150" />
         <el-table-column label="状态" width="100"><template #default="scope">{{ scope.row.status==='RUNNING'?'进行中':'已完成' }}</template></el-table-column>
         <el-table-column label="通过/总数" width="110"><template #default="scope">{{ scope.row.passedCases }}/{{ scope.row.totalCases }}</template></el-table-column>
         <el-table-column label="分数" prop="score" width="90" /><el-table-column label="创建时间" width="170"><template #default="scope">{{ formatTs(scope.row.createTime) }}</template></el-table-column>
@@ -85,13 +97,17 @@ onMounted(loadList)
       <el-pagination class="pagination" background layout="total, sizes, prev, pager, next" :total="total" v-model:current-page="query.pageNum" v-model:page-size="query.pageSize" :page-sizes="[10,20,50]" @current-change="loadList" @size-change="()=>{query.pageNum=1;loadList()}" />
     </el-card>
 
-    <el-dialog v-model="createVisible" title="创建离线评测" width="520px"><el-form label-width="110px"><el-form-item label="评测名称"><el-input v-model="createForm.name" /></el-form-item><el-form-item label="Agent名称"><el-input v-model="createForm.agentName" /></el-form-item><el-form-item label="Case Family"><el-input v-model="createForm.caseFamilyId" /></el-form-item><el-form-item label="CaseLab会话"><el-input v-model="createForm.caseSessionId" placeholder="选填" /></el-form-item></el-form><template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="createRun">创建</el-button></template></el-dialog>
+    <el-dialog v-model="createVisible" title="创建离线评测" width="520px"><el-form label-width="110px"><el-form-item label="评测名称"><el-input v-model="createForm.name" /></el-form-item><el-form-item label="智能代理名称"><el-input v-model="createForm.agentName" /></el-form-item><el-form-item label="故障族编号"><el-input v-model="createForm.caseFamilyId" /></el-form-item><el-form-item label="故障会话编号"><el-input v-model="createForm.caseSessionId" placeholder="选填" /></el-form-item></el-form><template #footer><el-button @click="createVisible=false">取消</el-button><el-button type="primary" @click="createRun">创建</el-button></template></el-dialog>
 
     <el-drawer v-model="detailVisible" title="评测详情" size="760px"><template v-if="detail">
-      <el-descriptions :column="3" border><el-descriptions-item label="评测名称">{{ detail.name }}</el-descriptions-item><el-descriptions-item label="Agent">{{ detail.agentName }}</el-descriptions-item><el-descriptions-item label="状态">{{ detail.status==='RUNNING'?'进行中':'已完成' }}</el-descriptions-item><el-descriptions-item label="故障族">{{ detail.caseFamilyId }}</el-descriptions-item><el-descriptions-item label="通过用例">{{ detail.passedCases }}/{{ detail.totalCases }}</el-descriptions-item><el-descriptions-item label="最终分数">{{ detail.score }}</el-descriptions-item></el-descriptions>
-      <el-button v-if="detail.status==='FINISHED' && detail.passedCases < detail.totalCases" class="ticket-button" type="warning" @click="createTicket">生成失败跟进工单</el-button>
-      <template v-if="detail.status==='RUNNING'"><h3>提交用例结果</h3><el-form label-width="110px"><el-form-item label="用例编号"><el-input v-model="caseForm.caseId" /></el-form-item><el-form-item label="隐藏 Oracle"><el-input v-model="caseForm.expectedResult" type="textarea" :rows="3" placeholder="仅评测器可见，不得发送给Agent" /></el-form-item><el-form-item label="Agent实际输出"><el-input v-model="caseForm.actualResult" type="textarea" :rows="3" /></el-form-item><el-form-item label="耗时毫秒"><el-input-number v-model="caseForm.durationMs" :min="0" :max="3600000" /></el-form-item><el-form-item label="TraceId"><el-input v-model="caseForm.traceId" /></el-form-item><el-button type="primary" @click="submitCase">记录用例</el-button><el-button type="success" @click="finish">完成并计分</el-button></el-form></template>
-      <h3>用例结果</h3><el-table :data="detail.cases||[]" border><el-table-column label="用例" prop="caseId" width="120" /><el-table-column label="隐藏 Oracle" prop="expectedResult" min-width="180" show-overflow-tooltip /><el-table-column label="Agent实际输出" prop="actualResult" min-width="180" show-overflow-tooltip /><el-table-column label="结果" width="80"><template #default="scope"><el-tag :type="scope.row.passed?'success':'danger'">{{ scope.row.passed?'通过':'未通过' }}</el-tag></template></el-table-column><el-table-column label="耗时" width="100"><template #default="scope">{{ scope.row.durationMs??'-' }} ms</template></el-table-column></el-table>
+      <el-descriptions :column="3" border><el-descriptions-item label="评测名称">{{ detail.name }}</el-descriptions-item><el-descriptions-item label="智能代理">{{ detail.agentName }}</el-descriptions-item><el-descriptions-item label="状态">{{ detail.status==='RUNNING'?'进行中':'已完成' }}</el-descriptions-item><el-descriptions-item label="故障族">{{ detail.caseFamilyId }}</el-descriptions-item><el-descriptions-item label="通过用例">{{ detail.passedCases }}/{{ detail.totalCases }}</el-descriptions-item><el-descriptions-item label="最终分数">{{ detail.score }}</el-descriptions-item></el-descriptions>
+      <el-button v-if="canManage && detail.status==='FINISHED' && detail.passedCases < detail.totalCases" class="ticket-button" type="warning" @click="createTicket">生成失败跟进工单</el-button>
+      <template v-if="canManage && detail.status==='RUNNING'">
+        <h3>调用真实智能代理自动评测</h3>
+        <el-form label-width="120px"><el-form-item label="用例编号"><el-input v-model="autoForm.caseId" /></el-form-item><el-form-item label="公开题面"><el-input v-model="autoForm.input" type="textarea" :rows="3" placeholder="该内容会发送给真实智能代理" /></el-form-item><el-form-item label="隐藏判定标准"><el-input v-model="autoForm.expectedResult" type="textarea" :rows="3" placeholder="仅评测器可见，不发送给智能代理" /></el-form-item><el-button type="primary" @click="executeCase">执行并自动评分</el-button></el-form>
+        <h3>录入已有运行结果</h3><el-form label-width="120px"><el-form-item label="用例编号"><el-input v-model="caseForm.caseId" /></el-form-item><el-form-item label="隐藏判定标准"><el-input v-model="caseForm.expectedResult" type="textarea" :rows="3" placeholder="仅评测器可见，不得发送给智能代理" /></el-form-item><el-form-item label="实际输出"><el-input v-model="caseForm.actualResult" type="textarea" :rows="3" /></el-form-item><el-form-item label="耗时毫秒"><el-input-number v-model="caseForm.durationMs" :min="0" :max="3600000" /></el-form-item><el-form-item label="追踪编号"><el-input v-model="caseForm.traceId" /></el-form-item><el-button type="primary" @click="submitCase">记录用例</el-button><el-button type="success" @click="finish">完成并计分</el-button></el-form>
+      </template>
+      <h3>用例结果</h3><el-table :data="detail.cases||[]" border><el-table-column label="用例" prop="caseId" width="120" /><el-table-column label="隐藏判定标准" prop="expectedResult" min-width="180" show-overflow-tooltip /><el-table-column label="实际输出" prop="actualResult" min-width="180" show-overflow-tooltip /><el-table-column label="真实运行编号" prop="runtimeRunId" min-width="150" show-overflow-tooltip /><el-table-column label="结果" width="80"><template #default="scope"><el-tag :type="scope.row.passed?'success':'danger'">{{ scope.row.passed?'通过':'未通过' }}</el-tag></template></el-table-column><el-table-column label="耗时" width="100"><template #default="scope">{{ scope.row.durationMs??'-' }} 毫秒</template></el-table-column></el-table>
     </template></el-drawer>
   </div>
 </template>
