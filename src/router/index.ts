@@ -218,7 +218,7 @@ export const asyncRouterMap: RouteRecordExt[] = [
         path: 'agentEval',
         name: 'agentEval',
         component: () => import('@/views/caseOps/agentEval/index.vue'),
-        meta: { title: 'Agent离线评测', icon: 'code' },
+        meta: { title: '智能代理离线评测', icon: 'code' },
       },
       {
         path: 'agentOps',

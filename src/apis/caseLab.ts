@@ -3,10 +3,26 @@ import http from '@/utils/http'
 export interface CaseFamily {
   familyId: string
   name: string
-  hookId: string
-  action: string
-  scopeKey: string
+  groupCode: string
+  groupName: string
+  faultType: string
+  hookIds: string[]
+  action?: string
+  scopeKeys: string[]
+  scopeKey?: string
   oracle: string
+  executionStatus: 'EXECUTABLE' | 'PLANNED'
+  executionNote: string
+}
+
+export interface CaseLabStatus {
+  enabled: boolean
+  environment: string
+  killSwitchOn: boolean
+  sessionDirectoryConfigured: boolean
+  sessionDirectoryReady: boolean
+  ready: boolean
+  message: string
 }
 
 export interface CaseLabSession {
@@ -14,6 +30,7 @@ export interface CaseLabSession {
   familyId: string
   hookId: string
   action: string
+  sessionTraceId?: string
   status: string
   createdAt?: string
   expiresAt?: string
@@ -22,8 +39,22 @@ export interface CaseLabSession {
   scope: Record<string, string>
 }
 
+export interface CaseLabTriggerEvent {
+  sessionId: string
+  familyId: string
+  hookId: string
+  action: string
+  event: string
+  firedAt: string
+  businessTraceId?: string
+  orderId?: string
+  scope: Record<string, string>
+}
+
 export const getCaseFamiliesAPI = () =>
   http<CaseFamily[]>({ url: '/caseLab/read/families', method: 'get' })
+export const getCaseStatusAPI = () =>
+  http<CaseLabStatus>({ url: '/caseLab/read/status', method: 'get' })
 export const getCaseSessionsAPI = () =>
   http<CaseLabSession[]>({ url: '/caseLab/read/sessions', method: 'get' })
 export const getCaseEventsAPI = (id: string) =>
