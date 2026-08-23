@@ -181,6 +181,12 @@ export const asyncRouterMap: RouteRecordExt[] = [
         meta: { title: '退款管理', icon: 'order-return' },
       },
       {
+        path: 'supportTicket',
+        name: 'supportTicket',
+        component: () => import('@/views/oms/support/index.vue'),
+        meta: { title: '工单中心', icon: 'order-return' },
+      },
+      {
         path: 'returnReason',
         name: 'returnReason',
         component: () => import('@/views/oms/apply/reason.vue'),
@@ -192,6 +198,27 @@ export const asyncRouterMap: RouteRecordExt[] = [
         component: () => import('@/views/oms/apply/applyDetail.vue'),
         meta: { title: '售后详情' },
         hidden: true,
+      },
+    ],
+  },
+  {
+    path: '/caseOps',
+    component: Layout,
+    redirect: '/caseOps/caseLab',
+    name: 'caseOps',
+    meta: { title: '实验与评测', icon: 'example' },
+    children: [
+      {
+        path: 'caseLab',
+        name: 'caseLab',
+        component: () => import('@/views/caseOps/caseLab/index.vue'),
+        meta: { title: '故障注入实验室', icon: 'example' },
+      },
+      {
+        path: 'agentEval',
+        name: 'agentEval',
+        component: () => import('@/views/caseOps/agentEval/index.vue'),
+        meta: { title: 'Agent离线评测', icon: 'code' },
       },
     ],
   },
