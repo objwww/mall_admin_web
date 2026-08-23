@@ -25,11 +25,15 @@ export type UserInfoResult = {
   /** 菜单 */
   menus: UmsMenu[]
   /** 角色 */
-  roles: []
+  roles: string[]
+  /** 按钮级权限码 */
+  permissions: string[]
+  /** 可访问的后端资源路径 */
+  resourceUrls: string[]
 }
 
 /** 用户信息（store中存储的） */
-export type UserInfo = Pick<UserInfoResult, 'username' | 'menus' | 'roles'> & {
+export type UserInfo = Pick<UserInfoResult, 'username' | 'menus' | 'roles' | 'permissions' | 'resourceUrls'> & {
   /** 登录token */
   token: string
   /** 头像 */

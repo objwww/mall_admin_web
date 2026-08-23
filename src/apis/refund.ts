@@ -1,5 +1,5 @@
 import type { CommonPage } from '@/types/common'
-import type { OmsOrderRefund, RefundQueryParam } from '@/types/refund'
+import type { OmsOrderRefund, RefundAuditLog, RefundQueryParam } from '@/types/refund'
 import http from '@/utils/http'
 
 /**
@@ -30,6 +30,16 @@ export function retryRefundAPI(id: number) {
   return http({
     url: `/refund/retry/${id}`,
     method: 'post',
+  })
+}
+
+/**
+ * 退款操作审计记录
+ */
+export function getRefundLogsAPI(id: number) {
+  return http<RefundAuditLog[]>({
+    url: `/refund/read/${id}/logs`,
+    method: 'get',
   })
 }
 

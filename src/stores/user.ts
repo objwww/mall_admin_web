@@ -13,6 +13,8 @@ export const useUserStore = defineStore(
       roles: [],
       token: '',
       menus: [],
+      permissions: [],
+      resourceUrls: [],
     })
 
     // 用户登录
@@ -35,6 +37,8 @@ export const useUserStore = defineStore(
       }
       userInfo.value.menus = res.data.menus
       userInfo.value.avatar = res.data.icon
+      userInfo.value.permissions = res.data.permissions || []
+      userInfo.value.resourceUrls = res.data.resourceUrls || []
     }
 
     // 用户登出
@@ -42,11 +46,16 @@ export const useUserStore = defineStore(
       await adminLogoutAPI()
       userInfo.value.token = ''
       userInfo.value.roles = []
+      userInfo.value.permissions = []
+      userInfo.value.resourceUrls = []
     }
 
     // 前端登出
     const fedLogout = () => {
       userInfo.value.token = ''
+      userInfo.value.roles = []
+      userInfo.value.permissions = []
+      userInfo.value.resourceUrls = []
     }
 
     return {

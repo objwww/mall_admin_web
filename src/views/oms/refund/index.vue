@@ -49,8 +49,8 @@
       </el-table-column>
       <el-table-column label="操作" width="160" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button v-if="row.status === 3" type="text" size="small" @click="handleRetry(row)">重新退款</el-button>
-          <el-button v-if="row.status === 1" type="text" size="small" @click="handleReconcile(row)">查询渠道</el-button>
+          <el-button v-if="canRetry && row.status === 3" type="text" size="small" @click="handleRetry(row)">重新退款</el-button>
+          <el-button v-if="canReconcile && row.status === 1" type="text" size="small" @click="handleReconcile(row)">查询渠道</el-button>
           <el-button type="text" size="small" @click="handleDetail(row)">详情</el-button>
         </template>
       </el-table-column>
@@ -58,7 +58,7 @@
 
     <el-pagination v-show="total > 0" class="pagination" background :current-page="listQuery.pageNum" :page-size="listQuery.pageSize" :page-sizes="[10, 20, 50, 100]" :total="total" layout="total, sizes, prev, pager, next, jumper" @size-change="handleSizeChange" @current-change="handlePageChange" />
 
-    <el-dialog v-model="detailVisible" title="退款单详情" width="600px">
+    <el-dialog v-model="detailVisible" title="退款单详情" width="900px">
       <el-descriptions :column="2" border v-if="currentRefund">
         <el-descriptions-item label="退款单号">{{ currentRefund.refundSn }}</el-descriptions-item>
         <el-descriptions-item label="订单号">{{ currentRefund.orderSn }}</el-descriptions-item>
@@ -76,18 +76,51 @@
         <el-descriptions-item label="创建时间">{{ formatDateTime(currentRefund.createTime) }}</el-descriptions-item>
         <el-descriptions-item label="完成时间">{{ currentRefund.finishTime ? formatDateTime(currentRefund.finishTime) : '-' }}</el-descriptions-item>
       </el-descriptions>
+      <el-divider content-position="left">操作审计</el-divider>
+      <el-table v-loading="logsLoading" :data="auditLogs" border max-height="320">
+        <el-table-column label="时间" width="165">
+          <template #default="{ row }">{{ formatDateTime(row.createTime) }}</template>
+        </el-table-column>
+        <el-table-column label="动作" width="130">
+          <template #default="{ row }">{{ auditActionText(row.action) }}</template>
+        </el-table-column>
+        <el-table-column label="状态变化" width="140">
+          <template #default="{ row }">{{ auditStatusText(row) }}</template>
+        </el-table-column>
+        <el-table-column label="操作来源" width="160">
+          <template #default="{ row }">{{ auditOperatorText(row) }}</template>
+        </el-table-column>
+        <el-table-column label="结果" width="80" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.success === 1 ? 'success' : 'danger'" size="small">
+              {{ row.success === 1 ? '成功' : '失败' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="说明" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.errorMsg || '-' }}</template>
+        </el-table-column>
+        <template #empty>暂无操作审计记录</template>
+      </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Refresh } from '@element-plus/icons-vue'
 import { formatDateTime } from '@/utils/datetime'
-import { getRefundListAPI, getRefundDetailAPI, retryRefundAPI, reconcileRefundAPI } from '@/apis/refund'
-import type { OmsOrderRefund, RefundQueryParam } from '@/types/refund'
-import { refundStatusText, refundChannelText } from '@/types/refund'
+import { hasPermission } from '@/utils/permission'
+import { getRefundListAPI, getRefundDetailAPI, getRefundLogsAPI, retryRefundAPI, reconcileRefundAPI } from '@/apis/refund'
+import type { OmsOrderRefund, RefundAuditLog, RefundQueryParam } from '@/types/refund'
+import {
+  refundAuditActionText,
+  refundChannelText,
+  refundOperationSourceText,
+  refundOperatorTypeText,
+  refundStatusText,
+} from '@/types/refund'
 
 const listQuery = ref<RefundQueryParam>({ pageNum: 1, pageSize: 10 })
 const list = ref<OmsOrderRefund[]>([])
@@ -95,6 +128,10 @@ const total = ref(0)
 const listLoading = ref(false)
 const detailVisible = ref(false)
 const currentRefund = ref<OmsOrderRefund | null>(null)
+const auditLogs = ref<RefundAuditLog[]>([])
+const logsLoading = ref(false)
+const canRetry = computed(() => hasPermission('oms:refund:retry'))
+const canReconcile = computed(() => hasPermission('oms:refund:reconcile'))
 type TagType = 'primary' | 'success' | 'warning' | 'info' | 'danger' | undefined
 
 const getList = async () => {
@@ -104,6 +141,7 @@ const getList = async () => {
     list.value = res.data.list
     total.value = res.data.total
   } catch (e: any) {
+    ElMessage.error(e.message || '获取退款列表失败')
   } finally {
     listLoading.value = false
   }
@@ -147,12 +185,19 @@ const handleReconcile = async (row: OmsOrderRefund) => {
 }
 
 const handleDetail = async (row: OmsOrderRefund) => {
+  logsLoading.value = true
   try {
-    const res = await getRefundDetailAPI(row.id)
-    currentRefund.value = res.data
+    const [detailRes, logsRes] = await Promise.all([
+      getRefundDetailAPI(row.id),
+      getRefundLogsAPI(row.id),
+    ])
+    currentRefund.value = detailRes.data
+    auditLogs.value = logsRes.data
     detailVisible.value = true
   } catch (e: any) {
     ElMessage.error(e.message || '获取详情失败')
+  } finally {
+    logsLoading.value = false
   }
 }
 
@@ -166,6 +211,18 @@ const statusTagType = (status: number): TagType => {
 const channelText = (code?: string): string => {
   if (!code) return '未知'
   return refundChannelText[code] || code
+}
+const auditActionText = (action: string): string => refundAuditActionText[action] || '未知动作'
+const auditStatusText = (row: RefundAuditLog): string => {
+  if (row.fromStatus === undefined && row.toStatus === undefined) return '-'
+  const from = row.fromStatus === undefined ? '-' : statusText(row.fromStatus)
+  const to = row.toStatus === undefined ? '-' : statusText(row.toStatus)
+  return `${from} → ${to}`
+}
+const auditOperatorText = (row: RefundAuditLog): string => {
+  const type = refundOperatorTypeText[row.operatorType] || '未知操作人'
+  const source = refundOperationSourceText[row.source] || '未知来源'
+  return row.operatorId ? `${type} ${row.operatorId}（${source}）` : `${type}（${source}）`
 }
 
 onMounted(() => { getList() })
